@@ -24,28 +24,26 @@ def test_criterion_evaluation_valid_met():
     assert eval_item.suggested_clarification is None
 
 
-def test_criterion_evaluation_missing_cannot_have_evidence():
-    with pytest.raises(ValidationError) as exc_info:
-        CriterionEvaluation(
-            criterion="Previous Diagnostic Testing",
-            status=CriterionStatus.MISSING,
-            evidence="Some quote",  # Invalid for missing
-            explanation="Not documented",
-            suggested_clarification="Order X-ray",
-        )
-    assert "Evidence must be null when status is 'missing'" in str(exc_info.value)
+def test_criterion_evaluation_missing_sanitizes_evidence():
+    eval_item = CriterionEvaluation(
+        criterion="Previous Diagnostic Testing",
+        status=CriterionStatus.MISSING,
+        evidence="Some quote stating not performed",
+        explanation="Not documented",
+        suggested_clarification="Order X-ray",
+    )
+    assert eval_item.evidence is None
 
 
-def test_criterion_evaluation_met_cannot_have_clarification():
-    with pytest.raises(ValidationError) as exc_info:
-        CriterionEvaluation(
-            criterion="Physical Examination Findings",
-            status=CriterionStatus.MET,
-            evidence="Exam normal",
-            explanation="Documented fully",
-            suggested_clarification="Unnecessary clarification",  # Invalid for met
-        )
-    assert "Suggested clarification must be null when status is 'met'" in str(exc_info.value)
+def test_criterion_evaluation_met_sanitizes_clarification():
+    eval_item = CriterionEvaluation(
+        criterion="Physical Examination Findings",
+        status=CriterionStatus.MET,
+        evidence="Exam normal",
+        explanation="Documented fully",
+        suggested_clarification="Unnecessary clarification",
+    )
+    assert eval_item.suggested_clarification is None
 
 
 def test_mock_llm_client_generates_valid_report():

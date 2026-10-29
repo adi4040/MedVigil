@@ -95,3 +95,32 @@ pytest -v -s
 > [!NOTE]
 > All automated tests execute in-process without needing a running Uvicorn server, making them fast and suitable for continuous integration (CI) pipelines.
 
+
+
+---
+
+## 5. Stage 1 Evaluation Benchmark Runner
+
+You can evaluate your synthetic clinical notes against ground-truth expectations in [`eval_cases/eval_cases.json`](file:///e:/Projects/MedV_micro_service/eval_cases/eval_cases.json) using the dedicated evaluation runner:
+
+### Run all 5 evaluation cases:
+```powershell
+python scripts/run_eval.py
+```
+
+### Run a specific evaluation case:
+```powershell
+python scripts/run_eval.py --case-id eval_001
+```
+
+### Run with offline Mock client (zero API cost):
+```powershell
+python scripts/run_eval.py --provider mock
+```
+
+### Custom model or output path:
+```powershell
+python scripts/run_eval.py --model gemini-2.5-pro --output eval_cases/pro_results.json
+```
+
+Detailed metrics and per-criterion comparison logs are automatically exported to [`eval_cases/eval_results.json`](file:///e:/Projects/MedV_micro_service/eval_cases/eval_results.json).

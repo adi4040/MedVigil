@@ -13,7 +13,7 @@ CRITERIA TO EVALUATE:
 - Unclear condition: The note states an exam was performed (e.g., "exam reviewed", "back examined") without stating specific clinical findings.
 
 3. Previous Diagnostic Testing
-- Requirement: The note must document results of prior plain-film radiographs (X-rays) of the lumbar spine, OR explicitly state why prior imaging is not clinically required (e.g., acute red-flag neurological deficits).
+- Requirement: The note must document results of prior plain-film radiographs (X-rays) of the lumbar spine, OR explicitly state why prior imaging is not clinically required (e.g., acute red-flag neurological deficits). If the note states imaging was not performed, but fails to provide a clinical exception/reason (like red-flag symptoms), mark it as 'missing'..
 - Unclear condition: The note mentions prior imaging was ordered or performed at an outside facility, but the findings are unavailable or not described.
 
 4. Conservative Treatment History

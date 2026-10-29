@@ -13,34 +13,48 @@ class CriterionEvaluation(BaseModel):
     criterion: str = Field(
         ..., description="Exact name of the criterion from the supplied rubric."
     )
-    status: CriterionStatus = Field(
-        ...,
-        description="Whether the criterion is met, missing, or unclear based strictly on the note.",
-    )
     evidence: Optional[str] = Field(
         None,
-        description="Verbatim quote from the clinical note supporting the status. Must be null if status is 'missing'.",
+        description=(
+            "Verbatim quote from the clinical note addressing this criterion. "
+            "Must be extracted first if any relevant documentation exists. "
+            "Must be null if status is 'missing'."
+        ),
     )
     explanation: str = Field(
         ...,
-        description="Concise explanation of why the documented evidence meets, fails to meet, or only partially addresses the criterion.",
+        description=(
+            "Concise analysis of whether the documented quote satisfies the rubric requirement, "
+            "only partially addresses it with vague/incomplete details, or completely fails to document it."
+        ),
+    )
+    status: CriterionStatus = Field(
+        ...,
+        description=(
+            "Evaluation status determined AFTER reviewing evidence and explanation: "
+            "'met' if fully satisfied; "
+            "'unclear' if mentioned but details, timeframe, or required thresholds are vague, incomplete, or ambiguous; "
+            "'missing' if the required clinical findings/prerequisites are absent or unfulfilled."
+        ),
     )
     suggested_clarification: Optional[str] = Field(
         None,
-        description="Specific documentation clarification needed from the treating clinician if status is 'missing' or 'unclear'. Null if 'met'.",
+        description=(
+            "Specific documentation clarification needed from the treating clinician "
+            "if status is 'missing' or 'unclear'. Must be null if status is 'met'."
+        ),
     )
 
     @model_validator(mode="after")
-    def validate_evidence_and_clarification(self):
+    def validate_and_sanitize_evidence_and_clarification(self):
+        # Enforce schema constraints safely
         if self.status == CriterionStatus.MISSING and self.evidence is not None:
-            raise ValueError("Evidence must be null when status is 'missing'.")
+            self.evidence = None
         if (
             self.status == CriterionStatus.MET
             and self.suggested_clarification is not None
         ):
-            raise ValueError(
-                "Suggested clarification must be null when status is 'met'."
-            )
+            self.suggested_clarification = None
         return self
 
 

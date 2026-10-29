@@ -115,6 +115,7 @@ class GeminiAuditClient(BaseLLMClient):
             contents=user_prompt,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
+                temperature=0.0,
                 response_mime_type="application/json",
                 response_schema=ClinicalGapReport,
             ),
@@ -148,15 +149,35 @@ class MockAuditClient(BaseLLMClient):
         evaluations = [
             CriterionEvaluation(
                 criterion="Symptoms and Duration",
-                status=CriterionStatus.MET if "pain" in clinical_note.lower() else CriterionStatus.MISSING,
-                evidence="lower-back pain for eight weeks" if "pain" in clinical_note.lower() else None,
-                explanation="Patient documented lower-back pain duration in encounter note." if "pain" in clinical_note.lower() else "No duration found.",
-                suggested_clarification=None if "pain" in clinical_note.lower() else "Document exact symptom duration.",
+                status=(
+                    CriterionStatus.MET
+                    if "pain" in clinical_note.lower()
+                    else CriterionStatus.MISSING
+                ),
+                evidence=(
+                    "lower-back pain for eight weeks"
+                    if "pain" in clinical_note.lower()
+                    else None
+                ),
+                explanation=(
+                    "Patient documented lower-back pain duration in encounter note."
+                    if "pain" in clinical_note.lower()
+                    else "No duration found."
+                ),
+                suggested_clarification=(
+                    None
+                    if "pain" in clinical_note.lower()
+                    else "Document exact symptom duration."
+                ),
             ),
             CriterionEvaluation(
                 criterion="Physical Examination Findings",
                 status=CriterionStatus.UNCLEAR,
-                evidence="Detailed neurological examination findings are not included." if "examination" in clinical_note.lower() else None,
+                evidence=(
+                    "Detailed neurological examination findings are not included."
+                    if "examination" in clinical_note.lower()
+                    else None
+                ),
                 explanation="Physical exam mentioned but objective clinical findings are omitted.",
                 suggested_clarification="Provide objective physical examination findings including motor and sensory testing.",
             ),
@@ -187,7 +208,11 @@ def get_llm_client(provider: Optional[str] = None) -> BaseLLMClient:
     active_provider = (provider or settings.LLM_PROVIDER or "gemini").strip().lower()
 
     # Smart fallback: if GEMINI key is present, default to gemini
-    if settings.GEMINI_API_KEY and not settings.OPENAI_API_KEY and active_provider == "openai":
+    if (
+        settings.GEMINI_API_KEY
+        and not settings.OPENAI_API_KEY
+        and active_provider == "openai"
+    ):
         active_provider = "gemini"
 
     try:
@@ -208,4 +233,3 @@ def get_llm_client(provider: Optional[str] = None) -> BaseLLMClient:
                 detail=str(e),
             )
         raise
-
