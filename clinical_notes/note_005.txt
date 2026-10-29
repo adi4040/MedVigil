@@ -1,0 +1,14 @@
+Chief Complaint:
+Patient reports chronic aching lower-back pain persisting for 4 months.
+
+Physical Examination:
+Physical examination of the back was performed today and findings were discussed with the patient.
+
+Prior Diagnostic Testing:
+Patient states they had a back X-ray at an urgent care clinic last month, but the report and images are not available in our system.
+
+Conservative Treatment History:
+Physical therapy was recommended at the prior visit two months ago, though the note does not indicate whether the patient attended sessions or responded to therapy.
+
+Assessment and Plan:
+Plan: Order MRI lumbar spine.

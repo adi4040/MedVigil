@@ -1,0 +1,11 @@
+Chief Complaint:
+Patient reports lower-back pain for eight weeks.
+
+Clinical Findings:
+Persistent pain reported. Detailed neurological examination findings are not included.
+
+Previous Treatment:
+Treatment history is not documented.
+
+Plan:
+MRI of the lumbar spine requested.

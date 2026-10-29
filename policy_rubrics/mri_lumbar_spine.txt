@@ -1,0 +1,25 @@
+RUBRIC ID: MRI_PA_001
+PROCEDURE: MRI Lumbar Spine (Without Contrast)
+PURPOSE: Evaluate whether the clinical note documents the required evidence for medical-necessity review.
+
+CRITERIA TO EVALUATE:
+
+1. Symptoms and Duration
+- Requirement: The note must document the patient's primary lumbar/back symptoms (e.g., axial pain, radiculopathy, numbness, weakness) AND the specific duration of those symptoms.
+- Unclear condition: Symptoms are mentioned without a timeframe, or duration is vague (e.g., "for a while", "recently") without a measurable period.
+
+2. Physical Examination Findings
+- Requirement: The note must document objective findings from a physical or neurological examination relevant to the lumbar spine (e.g., motor strength, sensory deficits, deep tendon reflexes, straight-leg raise test, range of motion, or gait assessment).
+- Unclear condition: The note states an exam was performed (e.g., "exam reviewed", "back examined") without stating specific clinical findings.
+
+3. Previous Diagnostic Testing
+- Requirement: The note must document results of prior plain-film radiographs (X-rays) of the lumbar spine, OR explicitly state why prior imaging is not clinically required (e.g., acute red-flag neurological deficits).
+- Unclear condition: The note mentions prior imaging was ordered or performed at an outside facility, but the findings are unavailable or not described.
+
+4. Conservative Treatment History
+- Requirement: For non-emergent presentations, the note must document at least 6 weeks of provider-directed conservative therapy (e.g., physical therapy, structured home exercise, prescription NSAIDs/neuropathic medications) and the patient's response, OR document a clinical exception (such as progressive neurological deficit or red-flag symptoms) where immediate imaging is indicated.
+- Unclear condition: Conservative therapy is mentioned without duration, adherence, or clinical outcome (e.g., "took pain pills occasionally", "PT was recommended previously").
+
+5. Clinical Indication and Medical Necessity
+- Requirement: The note must state the specific clinical reason for ordering the lumbar MRI (e.g., suspected disc herniation, spinal stenosis, cauda equina rule-out, or pre-procedural planning) linking the patient's presentation to the requested scan.
+- Unclear condition: The note merely states "MRI requested" or "Plan: Lumbar MRI" without stating the diagnostic question or suspected pathology.

@@ -1,0 +1,172 @@
+[
+  {
+    "case_id": "eval_001",
+    "rubric_id": "MRI_PA_001",
+    "note_file": "clinical_notes/note_001.txt",
+    "rubric_file": "policy_rubrics/mri_lumbar_spine.txt",
+    "description": "Baseline case with missing treatment/imaging history and unclear exam/indication.",
+    "expected_evaluations": [
+      {
+        "criterion": "Symptoms and Duration",
+        "expected_status": "met",
+        "expected_evidence": "Patient reports lower-back pain for eight weeks."
+      },
+      {
+        "criterion": "Physical Examination Findings",
+        "expected_status": "unclear",
+        "expected_evidence": "Persistent pain reported. Detailed neurological examination findings are not included."
+      },
+      {
+        "criterion": "Previous Diagnostic Testing",
+        "expected_status": "missing",
+        "expected_evidence": null
+      },
+      {
+        "criterion": "Conservative Treatment History",
+        "expected_status": "missing",
+        "expected_evidence": null
+      },
+      {
+        "criterion": "Clinical Indication and Medical Necessity",
+        "expected_status": "unclear",
+        "expected_evidence": "MRI of the lumbar spine requested."
+      }
+    ]
+  },
+  {
+    "case_id": "eval_002",
+    "rubric_id": "MRI_PA_001",
+    "note_file": "clinical_notes/note_002.txt",
+    "rubric_file": "policy_rubrics/mri_lumbar_spine.txt",
+    "description": "Fully documented routine radiculopathy case where all five criteria are met.",
+    "expected_evaluations": [
+      {
+        "criterion": "Symptoms and Duration",
+        "expected_status": "met",
+        "expected_evidence": "48-year-old patient presents with 10 weeks of severe lower-back pain radiating down the posterior left leg to the great toe."
+      },
+      {
+        "criterion": "Physical Examination Findings",
+        "expected_status": "met",
+        "expected_evidence": "Lumbar flexion limited by pain. Positive left straight-leg raise at 35 degrees. Decreased light-touch sensation along the left L5 dermatome and 4/5 weakness in left extensor hallucis longus. Patellar and Achilles reflexes 2+ bilaterally."
+      },
+      {
+        "criterion": "Previous Diagnostic Testing",
+        "expected_status": "met",
+        "expected_evidence": "Lumbar spine X-ray performed 6 weeks ago demonstrated mild disc space narrowing at L4-L5 without spondylolisthesis or acute fracture."
+      },
+      {
+        "criterion": "Conservative Treatment History",
+        "expected_status": "met",
+        "expected_evidence": "Patient completed 6 weeks of supervised physical therapy (twice weekly) and took naproxen 500 mg BID plus gabapentin 300 mg TID for 6 weeks with no improvement in radicular symptoms."
+      },
+      {
+        "criterion": "Clinical Indication and Medical Necessity",
+        "expected_status": "met",
+        "expected_evidence": "Persistent left L5 radiculopathy refractory to 6 weeks of conservative management. Requesting MRI of the lumbar spine without contrast to evaluate for L4-L5 disc herniation and nerve root compression prior to considering epidural steroid injection."
+      }
+    ]
+  },
+  {
+    "case_id": "eval_003",
+    "rubric_id": "MRI_PA_001",
+    "note_file": "clinical_notes/note_003.txt",
+    "rubric_file": "policy_rubrics/mri_lumbar_spine.txt",
+    "description": "Vague symptom duration, missing prior imaging without red-flag exception, and insufficient conservative therapy.",
+    "expected_evaluations": [
+      {
+        "criterion": "Symptoms and Duration",
+        "expected_status": "unclear",
+        "expected_evidence": "Patient presents with lower-back pain that started recently after helping a friend move heavy furniture."
+      },
+      {
+        "criterion": "Physical Examination Findings",
+        "expected_status": "met",
+        "expected_evidence": "Moderate tenderness to palpation over the bilateral lumbar paraspinal muscles. Motor strength 5/5 in bilateral lower extremities, sensation intact to light touch, normal gait, negative straight-leg raise bilaterally."
+      },
+      {
+        "criterion": "Previous Diagnostic Testing",
+        "expected_status": "missing",
+        "expected_evidence": null
+      },
+      {
+        "criterion": "Conservative Treatment History",
+        "expected_status": "unclear",
+        "expected_evidence": "Patient reports taking over-the-counter ibuprofen off and on for a few days with temporary relief. No formal physical therapy attempted."
+      },
+      {
+        "criterion": "Clinical Indication and Medical Necessity",
+        "expected_status": "met",
+        "expected_evidence": "Lumbar strain vs. discogenic pain. Ordering lumbar spine MRI to evaluate for possible disc pathology."
+      }
+    ]
+  },
+  {
+    "case_id": "eval_004",
+    "rubric_id": "MRI_PA_001",
+    "note_file": "clinical_notes/note_004.txt",
+    "rubric_file": "policy_rubrics/mri_lumbar_spine.txt",
+    "description": "Acute red-flag presentation (suspected cauda equina syndrome) where prior X-ray and 6-week conservative therapy are explicitly bypassed.",
+    "expected_evaluations": [
+      {
+        "criterion": "Symptoms and Duration",
+        "expected_status": "met",
+        "expected_evidence": "Patient presents with 4 days of worsening severe lower-back pain accompanied by new-onset urinary retention and numbness in the groin area over the past 12 hours."
+      },
+      {
+        "criterion": "Physical Examination Findings",
+        "expected_status": "met",
+        "expected_evidence": "Decreased perineal sensation (saddle anesthesia), decreased rectal tone, and bilateral lower-extremity motor weakness (3/5 ankle dorsiflexion bilaterally). Achilles reflexes diminished bilaterally."
+      },
+      {
+        "criterion": "Previous Diagnostic Testing",
+        "expected_status": "met",
+        "expected_evidence": "Plain radiographs bypassed due to acute neurological deterioration requiring urgent cross-sectional soft-tissue evaluation."
+      },
+      {
+        "criterion": "Conservative Treatment History",
+        "expected_status": "met",
+        "expected_evidence": "Conservative therapy bypassed due to acute red-flag neurological deficits."
+      },
+      {
+        "criterion": "Clinical Indication and Medical Necessity",
+        "expected_status": "met",
+        "expected_evidence": "Suspected cauda equina syndrome. Urgent MRI of the lumbar spine without contrast ordered to evaluate for acute central disc herniation or epidural compression."
+      }
+    ]
+  },
+  {
+    "case_id": "eval_005",
+    "rubric_id": "MRI_PA_001",
+    "note_file": "clinical_notes/note_005.txt",
+    "rubric_file": "policy_rubrics/mri_lumbar_spine.txt",
+    "description": "Documented symptom duration, but exam findings, external X-ray results, PT adherence, and clinical indication are all unclear.",
+    "expected_evaluations": [
+      {
+        "criterion": "Symptoms and Duration",
+        "expected_status": "met",
+        "expected_evidence": "Patient reports chronic aching lower-back pain persisting for 4 months."
+      },
+      {
+        "criterion": "Physical Examination Findings",
+        "expected_status": "unclear",
+        "expected_evidence": "Physical examination of the back was performed today and findings were discussed with the patient."
+      },
+      {
+        "criterion": "Previous Diagnostic Testing",
+        "expected_status": "unclear",
+        "expected_evidence": "Patient states they had a back X-ray at an urgent care clinic last month, but the report and images are not available in our system."
+      },
+      {
+        "criterion": "Conservative Treatment History",
+        "expected_status": "unclear",
+        "expected_evidence": "Physical therapy was recommended at the prior visit two months ago, though the note does not indicate whether the patient attended sessions or responded to therapy."
+      },
+      {
+        "criterion": "Clinical Indication and Medical Necessity",
+        "expected_status": "unclear",
+        "expected_evidence": "Plan: Order MRI lumbar spine."
+      }
+    ]
+  }
+]
