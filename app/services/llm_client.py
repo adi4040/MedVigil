@@ -1,11 +1,22 @@
+import json
 import logging
 import re
+import time
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
+from pydantic import ValidationError
+
 from app.core.config import settings
 from app.core.prompts import SYSTEM_PROMPT, create_audit_user_prompt
+from app.core.retry import (
+    AuditEvaluationExhaustedError,
+    RetryConfig,
+    calculate_backoff,
+    format_validation_feedback,
+    is_transient_error,
+)
 from app.schemas.audit import (
     ClinicalGapReport,
     CriterionEvaluation,
@@ -24,6 +35,7 @@ class BaseLLMClient(ABC):
         clinical_note: str,
         policy_rubric: str,
         rubric_id: Optional[str] = None,
+        retry_config: Optional[RetryConfig] = None,
     ) -> ClinicalGapReport:
         """Evaluate a clinical note against a policy rubric and return a ClinicalGapReport."""
         pass
@@ -57,32 +69,90 @@ class OpenAIAuditClient(BaseLLMClient):
         clinical_note: str,
         policy_rubric: str,
         rubric_id: Optional[str] = None,
+        retry_config: Optional[RetryConfig] = None,
     ) -> ClinicalGapReport:
         user_prompt = create_audit_user_prompt(clinical_note, policy_rubric)
+        retry_cfg = retry_config or RetryConfig()
 
-        completion = self.client.beta.chat.completions.parse(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format=ClinicalGapReport,
+        messages: List[Dict[str, str]] = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        last_error: Optional[Exception] = None
+
+        for attempt in range(retry_cfg.max_retries + 1):
+            try:
+                completion = self.client.beta.chat.completions.parse(
+                    model=self.model,
+                    messages=messages,
+                    response_format=ClinicalGapReport,
+                )
+
+                choice = completion.choices[0]
+                if choice.message.refusal:
+                    raise RuntimeError(f"Model refused request: {choice.message.refusal}")
+
+                report = choice.message.parsed
+                if report is None:
+                    raw_content = choice.message.content or ""
+                    report = ClinicalGapReport.model_validate_json(raw_content)
+
+                if rubric_id and report.rubric_id != rubric_id:
+                    report.rubric_id = rubric_id
+                return report
+
+            except (ValidationError, json.JSONDecodeError) as val_err:
+                last_error = val_err
+                logger.warning(
+                    f"[OpenAIAuditClient] Validation failure on attempt {attempt + 1}/{retry_cfg.max_retries + 1}: {val_err}"
+                )
+                if attempt < retry_cfg.max_retries:
+                    delay = calculate_backoff(attempt, retry_cfg)
+                    logger.info(f"Applying backoff delay of {delay}s before self-correction attempt...")
+                    time.sleep(delay)
+
+                    raw_output = ""
+                    if "completion" in locals() and completion and completion.choices:
+                        raw_output = completion.choices[0].message.content or ""
+
+                    errors_list = (
+                        val_err.errors()
+                        if isinstance(val_err, ValidationError)
+                        else [{"loc": ["json"], "msg": str(val_err)}]
+                    )
+                    feedback = format_validation_feedback(errors_list, raw_output)
+
+                    messages.append({"role": "assistant", "content": raw_output})
+                    messages.append({"role": "user", "content": feedback})
+                else:
+                    raise AuditEvaluationExhaustedError(
+                        f"Failed to produce a valid ClinicalGapReport after {retry_cfg.max_retries + 1} attempts. Last validation error: {val_err}"
+                    ) from val_err
+
+            except Exception as exc:
+                last_error = exc
+                if is_transient_error(exc) and attempt < retry_cfg.max_retries:
+                    delay = calculate_backoff(attempt, retry_cfg)
+                    logger.warning(
+                        f"[OpenAIAuditClient] Transient failure on attempt {attempt + 1}/{retry_cfg.max_retries + 1}: {exc}. Backing off for {delay}s..."
+                    )
+                    time.sleep(delay)
+                    continue
+                elif is_transient_error(exc):
+                    raise AuditEvaluationExhaustedError(
+                        f"Exhausted {retry_cfg.max_retries + 1} attempts due to transient errors. Last error: {exc}"
+                    ) from exc
+                else:
+                    raise
+
+        raise AuditEvaluationExhaustedError(
+            f"Evaluation attempts exhausted without response. Last error: {last_error}"
         )
-
-        report = completion.choices[0].message.parsed
-        if report is None:
-            raise RuntimeError(
-                f"Failed to parse structured ClinicalGapReport from model: {completion.choices[0].message.refusal}"
-            )
-
-        if rubric_id and report.rubric_id != rubric_id:
-            report.rubric_id = rubric_id
-
-        return report
 
 
 class GeminiAuditClient(BaseLLMClient):
-    """Google Gemini client using native JSON Schema enforcement."""
+    """Google Gemini client using native JSON Schema enforcement and retry feedback loop."""
 
     def __init__(
         self,
@@ -98,37 +168,104 @@ class GeminiAuditClient(BaseLLMClient):
             )
 
         self.client = genai.Client(api_key=effective_key)
-        self.model = model or settings.LLM_MODEL or "gemini-2.5-flash"
+        self.model = model or settings.LLM_MODEL or "gemini-3.5-flash"
 
     def evaluate_audit(
         self,
         clinical_note: str,
         policy_rubric: str,
         rubric_id: Optional[str] = None,
+        retry_config: Optional[RetryConfig] = None,
     ) -> ClinicalGapReport:
         from google.genai import types
 
         user_prompt = create_audit_user_prompt(clinical_note, policy_rubric)
+        retry_cfg = retry_config or RetryConfig()
 
-        response = self.client.models.generate_content(
-            model=self.model,
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                temperature=0.0,
-                response_mime_type="application/json",
-                response_schema=ClinicalGapReport,
-            ),
+        contents: List[Any] = [
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=user_prompt)],
+            )
+        ]
+
+        last_error: Optional[Exception] = None
+
+        for attempt in range(retry_cfg.max_retries + 1):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_PROMPT,
+                        temperature=0.0,
+                        response_mime_type="application/json",
+                        response_schema=ClinicalGapReport,
+                    ),
+                )
+
+                if not response.text:
+                    raise RuntimeError("Gemini returned an empty response.")
+
+                report = ClinicalGapReport.model_validate_json(response.text)
+                if rubric_id and report.rubric_id != rubric_id:
+                    report.rubric_id = rubric_id
+                return report
+
+            except (ValidationError, json.JSONDecodeError) as val_err:
+                last_error = val_err
+                logger.warning(
+                    f"[GeminiAuditClient] Validation failure on attempt {attempt + 1}/{retry_cfg.max_retries + 1}: {val_err}"
+                )
+                if attempt < retry_cfg.max_retries:
+                    delay = calculate_backoff(attempt, retry_cfg)
+                    logger.info(f"Applying backoff delay of {delay}s before self-correction attempt...")
+                    time.sleep(delay)
+
+                    raw_output = response.text if "response" in locals() and response and response.text else "{}"
+                    errors_list = (
+                        val_err.errors()
+                        if isinstance(val_err, ValidationError)
+                        else [{"loc": ["json"], "msg": str(val_err)}]
+                    )
+                    feedback = format_validation_feedback(errors_list, raw_output)
+
+                    contents.append(
+                        types.Content(
+                            role="model",
+                            parts=[types.Part.from_text(text=raw_output)],
+                        )
+                    )
+                    contents.append(
+                        types.Content(
+                            role="user",
+                            parts=[types.Part.from_text(text=feedback)],
+                        )
+                    )
+                else:
+                    raise AuditEvaluationExhaustedError(
+                        f"Failed to produce a valid ClinicalGapReport after {retry_cfg.max_retries + 1} attempts. Last validation error: {val_err}"
+                    ) from val_err
+
+            except Exception as exc:
+                last_error = exc
+                if is_transient_error(exc) and attempt < retry_cfg.max_retries:
+                    delay = calculate_backoff(attempt, retry_cfg)
+                    logger.warning(
+                        f"[GeminiAuditClient] Transient failure on attempt {attempt + 1}/{retry_cfg.max_retries + 1}: {exc}. Backing off for {delay}s..."
+                    )
+                    time.sleep(delay)
+                    continue
+                elif is_transient_error(exc):
+                    raise AuditEvaluationExhaustedError(
+                        f"Exhausted {retry_cfg.max_retries + 1} attempts due to transient errors. Last error: {exc}"
+                    ) from exc
+                else:
+                    raise
+
+        raise AuditEvaluationExhaustedError(
+            f"Evaluation attempts exhausted without response. Last error: {last_error}"
         )
-
-        if not response.text:
-            raise RuntimeError("Gemini returned an empty response.")
-
-        report = ClinicalGapReport.model_validate_json(response.text)
-        if rubric_id and report.rubric_id != rubric_id:
-            report.rubric_id = rubric_id
-
-        return report
 
 
 class MockAuditClient(BaseLLMClient):
@@ -139,6 +276,7 @@ class MockAuditClient(BaseLLMClient):
         clinical_note: str,
         policy_rubric: str,
         rubric_id: Optional[str] = None,
+        retry_config: Optional[RetryConfig] = None,
     ) -> ClinicalGapReport:
         # Extract rubric ID from text if present
         detected_rubric_id = rubric_id or "RUBRIC_DEFAULT"

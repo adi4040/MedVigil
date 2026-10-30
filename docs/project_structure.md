@@ -43,9 +43,16 @@ MedV_micro_service/
 | :--- | :--- |
 | `app/main.py` | Entrypoint. Sets up the FastAPI application, CORS middleware, lifespan events, and registers top-level routers. |
 | `app/core/config.py` | Reads environment variables with `pydantic-settings` into a strongly-typed `Settings` object. |
+| `app/core/prompts.py` | Stores system instructions and prompt templates for clinical note evaluation. |
+| `app/core/retry.py` | Exponential backoff calculator, transient error classifier, and validation error feedback loop. |
+| `app/services/llm_client.py` | LLM client implementations (Gemini, OpenAI, Mock) with structured output enforcement and self-healing retries. |
+| `app/schemas/audit.py` | Pydantic data models for request inputs and the structured `ClinicalGapReport`. |
 | `app/api/v1/health.py` | Contains system health monitoring endpoints (`/health`, `/ready`). |
+| `app/api/v1/audit.py` | POST `/api/v1/audit/evaluate` endpoint invoking LLM audit evaluation. |
 | `tests/conftest.py` | Houses test fixtures, including the session-scoped `client` fixture using FastAPI's `TestClient`. |
 | `tests/test_health.py` | Verifies status codes and JSON payloads for root and health routes. |
+| `tests/test_audit.py` | Verifies audit schema validation, mock LLM execution, and API endpoint behavior. |
+| `tests/test_retry.py` | Verifies backoff calculations, transient recovery, and validation error self-correction. |
 
 ---
 

@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-29T13:14:07Z",
+  "timestamp": "2026-10-30T10:38:28Z",
   "provider": "gemini",
   "model": "gemini-3.5-flash-lite",
   "total_criteria": 25,
@@ -21,7 +21,7 @@
           "status_match": true,
           "expected_evidence": "Patient reports lower-back pain for eight weeks.",
           "actual_evidence": "Patient reports lower-back pain for eight weeks.",
-          "explanation": "The note documents the patient's primary lumbar symptoms (lower-back pain) and provides a specific duration (eight weeks), meeting the requirement.",
+          "explanation": "The note documents the primary symptom of lower-back pain and gives a specific measurable duration of eight weeks.",
           "suggested_clarification": null
         },
         {
@@ -31,8 +31,8 @@
           "status_match": true,
           "expected_evidence": "Persistent pain reported. Detailed neurological examination findings are not included.",
           "actual_evidence": "Detailed neurological examination findings are not included.",
-          "explanation": "The note mentions the physical examination or clinical findings section but lacks specific objective findings, matching the rubric's unclear condition.",
-          "suggested_clarification": "Please document specific objective findings from the physical or neurological examination relevant to the lumbar spine."
+          "explanation": "The note mentions an examination but explicitly states that detailed objective findings are not included, matching the unclear condition.",
+          "suggested_clarification": "Please document specific objective physical and neurological examination findings relevant to the lumbar spine."
         },
         {
           "criterion": "Previous Diagnostic Testing",
@@ -41,8 +41,8 @@
           "status_match": true,
           "expected_evidence": null,
           "actual_evidence": null,
-          "explanation": "The note completely fails to mention prior plain-film radiographs (X-rays) or any clinical exceptions like red-flag symptoms.",
-          "suggested_clarification": "Please document the results of prior lumbar spine X-rays or note the clinical exception/reason why prior imaging is not required."
+          "explanation": "The note completely fails to mention prior plain-film X-rays of the lumbar spine or document a clinical exception.",
+          "suggested_clarification": "Please document the results of prior lumbar spine X-rays or note any acute red-flag neurological deficits making prior imaging unnecessary."
         },
         {
           "criterion": "Conservative Treatment History",
@@ -51,8 +51,8 @@
           "status_match": true,
           "expected_evidence": null,
           "actual_evidence": null,
-          "explanation": "The note explicitly states that treatment history is not documented, thus lacking any record of 6 weeks of provider-directed conservative therapy or a documented clinical exception.",
-          "suggested_clarification": "Please document the patient's conservative treatment history including duration, therapy type, and response, or document a clinical exception such as acute red-flag neurological deficits."
+          "explanation": "The note completely omits any mention of a trial of provider-directed conservative therapy or clinical exceptions.",
+          "suggested_clarification": "Please document the history and response to at least 6 weeks of conservative therapy or document an acute clinical exception/red-flag symptom."
         },
         {
           "criterion": "Clinical Indication and Medical Necessity",
@@ -61,15 +61,15 @@
           "status_match": true,
           "expected_evidence": "MRI of the lumbar spine requested.",
           "actual_evidence": "MRI of the lumbar spine requested.",
-          "explanation": "The note merely states that an MRI of the lumbar spine is requested without stating the specific diagnostic question, suspected pathology, or clinical indication, matching the rubric's unclear condition.",
-          "suggested_clarification": "Please specify the clinical indication and diagnostic question for ordering the lumbar MRI linking the presentation to the requested scan."
+          "explanation": "The note requests a lumbar MRI without stating the specific diagnostic indication, suspected pathology, or clinical question, matching the unclear condition.",
+          "suggested_clarification": "Please document the specific clinical indication and suspected pathology for the requested lumbar MRI."
         }
       ],
       "missing_or_unclear_summary": [
-        "Document specific objective findings from the physical or neurological examination relevant to the lumbar spine.",
-        "Document the results of prior lumbar spine X-rays or note the clinical exception/reason why prior imaging is not required.",
-        "Document the patient's conservative treatment history including duration, therapy type, and response, or document a clinical exception such as acute red-flag neurological deficits.",
-        "Specify the clinical indication and diagnostic question for ordering the lumbar MRI linking the presentation to the requested scan."
+        "Please document specific objective physical and neurological examination findings relevant to the lumbar spine.",
+        "Please document the results of prior lumbar spine X-rays or note any acute red-flag neurological deficits making prior imaging unnecessary.",
+        "Please document the history and response to at least 6 weeks of conservative therapy or document an acute clinical exception/red-flag symptom.",
+        "Please document the specific clinical indication and suspected pathology for the requested lumbar MRI."
       ]
     },
     {
@@ -87,7 +87,7 @@
           "status_match": true,
           "expected_evidence": "48-year-old patient presents with 10 weeks of severe lower-back pain radiating down the posterior left leg to the great toe.",
           "actual_evidence": "48-year-old patient presents with 10 weeks of severe lower-back pain radiating down the posterior left leg to the great toe.",
-          "explanation": "The note clearly documents the primary symptoms (lower-back pain with radicular symptoms) and provides a specific, measurable duration of 10 weeks.",
+          "explanation": "The clinical note explicitly documents the patient's primary symptoms (lower-back pain radiating down the posterior left leg to the great toe) and provides a specific, measurable duration of 10 weeks.",
           "suggested_clarification": null
         },
         {
@@ -97,7 +97,7 @@
           "status_match": true,
           "expected_evidence": "Lumbar flexion limited by pain. Positive left straight-leg raise at 35 degrees. Decreased light-touch sensation along the left L5 dermatome and 4/5 weakness in left extensor hallucis longus. Patellar and Achilles reflexes 2+ bilaterally.",
           "actual_evidence": "Lumbar flexion limited by pain. Positive left straight-leg raise at 35 degrees. Decreased light-touch sensation along the left L5 dermatome and 4/5 weakness in left extensor hallucis longus. Patellar and Achilles reflexes 2+ bilaterally.",
-          "explanation": "The note documents specific objective physical and neurological examination findings including range of motion limitations, straight-leg raise results, sensory deficits, and motor strength.",
+          "explanation": "The note documents objective physical and neurological examination findings relevant to the lumbar spine, including range of motion, straight-leg raise, sensory deficits, motor strength, and reflexes.",
           "suggested_clarification": null
         },
         {
@@ -107,7 +107,7 @@
           "status_match": true,
           "expected_evidence": "Lumbar spine X-ray performed 6 weeks ago demonstrated mild disc space narrowing at L4-L5 without spondylolisthesis or acute fracture.",
           "actual_evidence": "Lumbar spine X-ray performed 6 weeks ago demonstrated mild disc space narrowing at L4-L5 without spondylolisthesis or acute fracture.",
-          "explanation": "The note explicitly documents the results of prior lumbar spine X-rays.",
+          "explanation": "The note documents the results of prior plain-film radiographs (X-rays) of the lumbar spine.",
           "suggested_clarification": null
         },
         {
@@ -117,7 +117,7 @@
           "status_match": true,
           "expected_evidence": "Patient completed 6 weeks of supervised physical therapy (twice weekly) and took naproxen 500 mg BID plus gabapentin 300 mg TID for 6 weeks with no improvement in radicular symptoms.",
           "actual_evidence": "Patient completed 6 weeks of supervised physical therapy (twice weekly) and took naproxen 500 mg BID plus gabapentin 300 mg TID for 6 weeks with no improvement in radicular symptoms.",
-          "explanation": "The note documents 6 weeks of provider-directed conservative therapy including physical therapy and medications, along with the patient's lack of improvement.",
+          "explanation": "The note documents over 6 weeks of provider-directed conservative therapy (physical therapy, NSAIDs, and neuropathic medication) along with the specific duration, adherence, and lack of improvement.",
           "suggested_clarification": null
         },
         {
@@ -127,7 +127,7 @@
           "status_match": true,
           "expected_evidence": "Persistent left L5 radiculopathy refractory to 6 weeks of conservative management. Requesting MRI of the lumbar spine without contrast to evaluate for L4-L5 disc herniation and nerve root compression prior to considering epidural steroid injection.",
           "actual_evidence": "Persistent left L5 radiculopathy refractory to 6 weeks of conservative management. Requesting MRI of the lumbar spine without contrast to evaluate for L4-L5 disc herniation and nerve root compression prior to considering epidural steroid injection.",
-          "explanation": "The note clearly states the specific clinical indication and suspected pathology (L4-L5 disc herniation and nerve root compression) justifying the requested lumbar MRI.",
+          "explanation": "The note clearly states the specific clinical reason and suspected pathology (L4-L5 disc herniation and nerve root compression) for ordering the lumbar MRI.",
           "suggested_clarification": null
         }
       ],
@@ -148,8 +148,8 @@
           "status_match": true,
           "expected_evidence": "Patient presents with lower-back pain that started recently after helping a friend move heavy furniture.",
           "actual_evidence": "Patient presents with lower-back pain that started recently after helping a friend move heavy furniture.",
-          "explanation": "The note documents the symptom of lower-back pain, but the duration is described vaguely as 'recently', which meets the unclear condition threshold.",
-          "suggested_clarification": "Please document the specific duration and measurable timeframe of the patient's lower-back pain."
+          "explanation": "The note documents lower-back symptoms but the duration is vague (\"started recently\"), meeting the unclear condition.",
+          "suggested_clarification": "Please document the specific measurable duration of the lower-back symptoms (e.g., exact number of weeks or months)."
         },
         {
           "criterion": "Physical Examination Findings",
@@ -158,7 +158,7 @@
           "status_match": true,
           "expected_evidence": "Moderate tenderness to palpation over the bilateral lumbar paraspinal muscles. Motor strength 5/5 in bilateral lower extremities, sensation intact to light touch, normal gait, negative straight-leg raise bilaterally.",
           "actual_evidence": "Moderate tenderness to palpation over the bilateral lumbar paraspinal muscles. Motor strength 5/5 in bilateral lower extremities, sensation intact to light touch, normal gait, negative straight-leg raise bilaterally.",
-          "explanation": "The note documents specific objective physical and neurological findings relevant to the lumbar spine, satisfying the requirement.",
+          "explanation": "The note details specific objective physical and neurological examination findings relevant to the lumbar spine.",
           "suggested_clarification": null
         },
         {
@@ -168,8 +168,8 @@
           "status_match": true,
           "expected_evidence": null,
           "actual_evidence": null,
-          "explanation": "The note explicitly documents that no prior spinal imaging has been performed, but it lacks a documented clinical exception or red-flag symptom justifying the omission of prior X-rays.",
-          "suggested_clarification": "Please document why prior plain-film X-rays of the lumbar spine were not performed or state any applicable clinical exceptions/red-flag symptoms."
+          "explanation": "The note states prior imaging was not performed, but fails to document a clinical exception or red-flag symptom justifying the omission of prior X-rays as required by the rubric.",
+          "suggested_clarification": "Please document prior lumbar X-ray results or provide a clinical exception/reason (such as acute red-flag neurological deficits) explaining why prior imaging was not required."
         },
         {
           "criterion": "Conservative Treatment History",
@@ -178,8 +178,8 @@
           "status_match": true,
           "expected_evidence": "Patient reports taking over-the-counter ibuprofen off and on for a few days with temporary relief. No formal physical therapy attempted.",
           "actual_evidence": "Patient reports taking over-the-counter ibuprofen off and on for a few days with temporary relief. No formal physical therapy attempted.",
-          "explanation": "Conservative therapy is documented with duration and outcome, but it falls short of the required 6-week minimum threshold and lacks documentation of a qualifying clinical exception.",
-          "suggested_clarification": "Please document a minimum of 6 weeks of provider-directed conservative therapy and the patient's response, or provide a clinical exception/red-flag symptom justifying immediate imaging."
+          "explanation": "Conservative therapy is mentioned but lacks the required 6-week duration and minimum threshold for non-emergent presentation, and fails to document an accepted clinical exception.",
+          "suggested_clarification": "Please document at least 6 weeks of provider-directed conservative therapy and the patient's response, or document a clinical exception/red-flag symptom justifying immediate imaging."
         },
         {
           "criterion": "Clinical Indication and Medical Necessity",
@@ -188,14 +188,14 @@
           "status_match": true,
           "expected_evidence": "Lumbar strain vs. discogenic pain. Ordering lumbar spine MRI to evaluate for possible disc pathology.",
           "actual_evidence": "Assessment and Plan: Lumbar strain vs. discogenic pain. Ordering lumbar spine MRI to evaluate for possible disc pathology.",
-          "explanation": "The note explicitly links the patient's presentation and suspected pathology to the requested lumbar MRI scan.",
+          "explanation": "The note explicitly states the clinical indication and diagnostic purpose (evaluate for possible disc pathology) for ordering the lumbar MRI.",
           "suggested_clarification": null
         }
       ],
       "missing_or_unclear_summary": [
-        "Clarify the specific measurable duration of the patient's lower-back pain instead of 'recently'.",
-        "Provide a clinical exception or justification for omitting prior lumbar X-rays since no prior imaging was performed.",
-        "Document at least 6 weeks of conservative therapy and the patient's response, or provide a clinical exception/red-flag symptom."
+        "Please document the specific measurable duration of the lower-back symptoms (e.g., exact number of weeks or months).",
+        "Please document prior lumbar X-ray results or provide a clinical exception/reason (such as acute red-flag neurological deficits) explaining why prior imaging was not required.",
+        "Please document at least 6 weeks of provider-directed conservative therapy and the patient's response, or document a clinical exception/red-flag symptom justifying immediate imaging."
       ]
     },
     {
@@ -213,7 +213,7 @@
           "status_match": true,
           "expected_evidence": "Patient presents with 4 days of worsening severe lower-back pain accompanied by new-onset urinary retention and numbness in the groin area over the past 12 hours.",
           "actual_evidence": "Patient presents with 4 days of worsening severe lower-back pain accompanied by new-onset urinary retention and numbness in the groin area over the past 12 hours.",
-          "explanation": "The clinical note clearly details the primary lumbar/back symptoms and provides specific durations for both the back pain (4 days) and new-onset urinary retention/groin numbness (12 hours).",
+          "explanation": "The clinical note clearly details the patient's lower-back symptoms, numbness, and urinary retention, along with specific quantifiable durations (4 days for back pain, 12 hours for groin numbness and urinary retention), fulfilling the requirement.",
           "suggested_clarification": null
         },
         {
@@ -223,7 +223,7 @@
           "status_match": true,
           "expected_evidence": "Decreased perineal sensation (saddle anesthesia), decreased rectal tone, and bilateral lower-extremity motor weakness (3/5 ankle dorsiflexion bilaterally). Achilles reflexes diminished bilaterally.",
           "actual_evidence": "Decreased perineal sensation (saddle anesthesia), decreased rectal tone, and bilateral lower-extremity motor weakness (3/5 ankle dorsiflexion bilaterally). Achilles reflexes diminished bilaterally.",
-          "explanation": "The note documents objective neurological and physical examination findings relevant to the lumbar spine, including perineal sensation, rectal tone, motor strength, and deep tendon reflexes.",
+          "explanation": "The note documents objective physical and neurological examination findings specific to the lumbar spine, including sensation, motor strength, reflexes, and rectal tone, fulfilling the requirement.",
           "suggested_clarification": null
         },
         {
@@ -233,7 +233,7 @@
           "status_match": true,
           "expected_evidence": "Plain radiographs bypassed due to acute neurological deterioration requiring urgent cross-sectional soft-tissue evaluation.",
           "actual_evidence": "Plain radiographs bypassed due to acute neurological deterioration requiring urgent cross-sectional soft-tissue evaluation.",
-          "explanation": "The note explicitly documents why prior plain-film radiographs were not performed, citing a clinical exception for acute red-flag neurological deficits.",
+          "explanation": "The note explicitly states why prior X-rays were not performed, citing acute neurological deterioration as a clinical exception, fulfilling the requirement.",
           "suggested_clarification": null
         },
         {
@@ -243,7 +243,7 @@
           "status_match": true,
           "expected_evidence": "Conservative therapy bypassed due to acute red-flag neurological deficits.",
           "actual_evidence": "Conservative therapy bypassed due to acute red-flag neurological deficits.",
-          "explanation": "The note explicitly documents the clinical exception allowing the bypass of conservative therapy due to acute red-flag neurological deficits.",
+          "explanation": "The note explicitly documents a clinical exception (acute red-flag neurological deficits) where immediate imaging is indicated, bypassing the 6-week conservative therapy requirement.",
           "suggested_clarification": null
         },
         {
@@ -253,7 +253,7 @@
           "status_match": true,
           "expected_evidence": "Suspected cauda equina syndrome. Urgent MRI of the lumbar spine without contrast ordered to evaluate for acute central disc herniation or epidural compression.",
           "actual_evidence": "Suspected cauda equina syndrome. Urgent MRI of the lumbar spine without contrast ordered to evaluate for acute central disc herniation or epidural compression.",
-          "explanation": "The note clearly states the specific clinical reason and suspected pathology (cauda equina syndrome, acute central disc herniation, or epidural compression) linking the patient's presentation to the requested scan.",
+          "explanation": "The note clearly states the specific clinical indication (suspected cauda equina syndrome, acute central disc herniation, or epidural compression) linking the patient's presentation to the requested scan.",
           "suggested_clarification": null
         }
       ],
@@ -274,7 +274,7 @@
           "status_match": true,
           "expected_evidence": "Patient reports chronic aching lower-back pain persisting for 4 months.",
           "actual_evidence": "Patient reports chronic aching lower-back pain persisting for 4 months.",
-          "explanation": "The note documents the patient's primary lower-back symptoms and specifies a measurable duration of 4 months, satisfying the requirement.",
+          "explanation": "The clinical note documents the primary lumbar symptom (chronic aching lower-back pain) and provides a specific duration of 4 months, satisfying the criterion.",
           "suggested_clarification": null
         },
         {
@@ -284,8 +284,8 @@
           "status_match": true,
           "expected_evidence": "Physical examination of the back was performed today and findings were discussed with the patient.",
           "actual_evidence": "Physical examination of the back was performed today and findings were discussed with the patient.",
-          "explanation": "The note states an exam was performed but fails to document specific objective findings (e.g., motor strength, reflexes, straight-leg raise test), matching the unclear condition.",
-          "suggested_clarification": "Document specific objective findings from the physical and neurological examination of the lumbar spine, including motor strength, sensory testing, reflexes, and straight-leg raise test results."
+          "explanation": "The note mentions an examination was performed, but it lacks specific objective findings (e.g., motor strength, reflexes, straight-leg raise test), matching the rubric's unclear condition.",
+          "suggested_clarification": "Please document specific objective findings from the physical and neurological examination of the lumbar spine."
         },
         {
           "criterion": "Previous Diagnostic Testing",
@@ -294,8 +294,8 @@
           "status_match": true,
           "expected_evidence": "Patient states they had a back X-ray at an urgent care clinic last month, but the report and images are not available in our system.",
           "actual_evidence": "Patient states they had a back X-ray at an urgent care clinic last month, but the report and images are not available in our system.",
-          "explanation": "Prior imaging is mentioned as performed at an outside facility, but the specific findings are unavailable or not described, matching the unclear condition.",
-          "suggested_clarification": "Obtain and document the specific findings of the prior lumbar X-ray, or provide documentation of acute red-flag neurological deficits if prior imaging is bypassed."
+          "explanation": "Prior imaging is mentioned as performed at an outside facility, but the specific findings are unavailable or not described, matching the rubric's unclear condition.",
+          "suggested_clarification": "Please provide the results/findings of the prior lumbar X-ray or document a clinical exception if imaging was not required."
         },
         {
           "criterion": "Conservative Treatment History",
@@ -304,8 +304,8 @@
           "status_match": true,
           "expected_evidence": "Physical therapy was recommended at the prior visit two months ago, though the note does not indicate whether the patient attended sessions or responded to therapy.",
           "actual_evidence": "Physical therapy was recommended at the prior visit two months ago, though the note does not indicate whether the patient attended sessions or responded to therapy.",
-          "explanation": "Conservative therapy is mentioned without documenting patient adherence, session attendance, or clinical response, matching the unclear condition.",
-          "suggested_clarification": "Document the specific duration, adherence, and clinical response regarding the conservative therapy (or physical therapy) completed, or document qualifying red-flag symptoms."
+          "explanation": "Conservative therapy is mentioned, but adherence, duration of active treatment, and clinical outcome are vague and lack detail, matching the rubric's unclear condition.",
+          "suggested_clarification": "Please document the duration, adherence, and response to conservative therapy (or document any clinical exceptions such as acute red-flag symptoms)."
         },
         {
           "criterion": "Clinical Indication and Medical Necessity",
@@ -314,15 +314,15 @@
           "status_match": true,
           "expected_evidence": "Plan: Order MRI lumbar spine.",
           "actual_evidence": "Plan: Order MRI lumbar spine.",
-          "explanation": "The note orders the MRI without stating the specific clinical indication or suspected pathology linking the presentation to the scan, matching the unclear condition.",
-          "suggested_clarification": "Document the specific diagnostic question or suspected pathology (e.g., suspected disc herniation, spinal stenosis) justifying the lumbar MRI order."
+          "explanation": "The note orders the lumbar MRI without stating the specific diagnostic indication, suspected pathology, or clinical question, matching the rubric's unclear condition.",
+          "suggested_clarification": "Please document the specific clinical indication and diagnostic purpose for ordering the lumbar MRI."
         }
       ],
       "missing_or_unclear_summary": [
-        "Document specific objective findings from the physical and neurological examination of the lumbar spine, including motor strength, sensory testing, reflexes, and straight-leg raise test results.",
-        "Obtain and document the specific findings of the prior lumbar X-ray, or provide documentation of acute red-flag neurological deficits if prior imaging is bypassed.",
-        "Document the specific duration, adherence, and clinical response regarding the conservative therapy (or physical therapy) completed, or document qualifying red-flag symptoms.",
-        "Document the specific diagnostic question or suspected pathology (e.g., suspected disc herniation, spinal stenosis) justifying the lumbar MRI order."
+        "Document specific objective findings from the physical and neurological examination of the lumbar spine.",
+        "Provide the results/findings of the prior lumbar X-ray or document a clinical exception if imaging was not required.",
+        "Document the duration, adherence, and response to conservative therapy (or document any clinical exceptions such as acute red-flag symptoms).",
+        "Document the specific clinical indication and diagnostic purpose for ordering the lumbar MRI."
       ]
     }
   ]
