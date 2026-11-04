@@ -253,3 +253,67 @@ async def test_stream_chunk_json_serialization_for_sse():
     dumped_err = error_chunk.model_dump_json()
     assert '"event":"error"' in dumped_err
     assert '"error":"Service unavailable"' in dumped_err
+
+
+def test_sse_endpoint_stream_success(client):
+    from app.main import app
+    from app.services.llm_client import MockAuditClient, get_llm_client
+
+    app.dependency_overrides[get_llm_client] = lambda: MockAuditClient(chunk_size=30)
+    payload = {
+        "clinical_note": "Patient presents with persistent lower-back pain for eight weeks.",
+        "policy_rubric": "RUBRIC ID: MRI_PA_001\n1. Symptoms and Duration",
+        "rubric_id": "MRI_PA_001",
+    }
+
+    with client.stream("POST", "/api/v1/audit/evaluate/stream", json=payload) as response:
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers["content-type"]
+        assert response.headers["cache-control"] == "no-cache"
+
+        raw_text = response.read().decode("utf-8")
+
+    app.dependency_overrides.clear()
+
+    # Verify SSE formatting
+    assert "event: token" in raw_text
+    assert "event: done" in raw_text
+    assert "data: {" in raw_text
+    assert '"rubric_id":"MRI_PA_001"' in raw_text
+
+
+def test_sse_endpoint_validation_error(client):
+    # Missing required 'policy_rubric'
+    payload = {"clinical_note": "Missing rubric"}
+    response = client.post("/api/v1/audit/evaluate/stream", json=payload)
+    assert response.status_code == 422
+
+
+def test_sse_endpoint_runtime_error_yields_error_event(client):
+    from app.main import app
+    from app.services.llm_client import BaseLLMClient, get_llm_client
+
+    class FailingStreamClient(BaseLLMClient):
+        def evaluate_audit(self, *args, **kwargs):
+            raise NotImplementedError()
+
+        async def stream_audit(self, *args, **kwargs):
+            yield StreamChunk.token_chunk("partial text")
+            raise RuntimeError("Mid-stream connection dropped")
+
+    app.dependency_overrides[get_llm_client] = lambda: FailingStreamClient()
+    payload = {
+        "clinical_note": "Some note",
+        "policy_rubric": "Some rubric",
+    }
+
+    with client.stream("POST", "/api/v1/audit/evaluate/stream", json=payload) as response:
+        assert response.status_code == 200
+        raw_text = response.read().decode("utf-8")
+
+    app.dependency_overrides.clear()
+
+    assert "event: token" in raw_text
+    assert "event: error" in raw_text
+    assert "Mid-stream connection dropped" in raw_text
+

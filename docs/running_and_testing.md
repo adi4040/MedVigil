@@ -36,6 +36,7 @@ Once the server is running, you can explore and test the endpoints directly in y
 | **Health Check** | [http://127.0.0.1:8000/api/v1/health](http://127.0.0.1:8000/api/v1/health) | Returns service health, name, and version |
 | **Readiness Check** | [http://127.0.0.1:8000/api/v1/ready](http://127.0.0.1:8000/api/v1/ready) | Liveness / readiness probe for orchestration |
 | **Clinical Audit** | `POST http://127.0.0.1:8000/api/v1/audit/evaluate` | Evaluates clinical note against policy rubric |
+| **Audit SSE Stream** | `POST http://127.0.0.1:8000/api/v1/audit/evaluate/stream` | Streams real-time token deltas and validated report via SSE |
 
 ---
 
@@ -70,6 +71,14 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/v1/health" -Method Get
 ```powershell
 curl.exe -i http://127.0.0.1:8000/api/v1/health
 ```
+
+### Testing the SSE Streaming Endpoint with `curl.exe`:
+```powershell
+curl.exe -N -X POST "http://127.0.0.1:8000/api/v1/audit/evaluate/stream" `
+  -H "Content-Type: application/json" `
+  -d '{\"clinical_note\": \"Patient has severe back pain for 8 weeks.\", \"policy_rubric\": \"RUBRIC ID: MRI_01\n1. Symptoms and Duration\"}'
+```
+*(The `-N` flag disables buffering so you can see SSE chunks stream in real time.)*
 
 ---
 
