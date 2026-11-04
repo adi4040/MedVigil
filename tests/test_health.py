@@ -18,3 +18,12 @@ def test_readiness_check(client):
     assert response.status_code == 200
     assert response.json() == {"status": "ready"}
 
+
+def test_demo_page(client):
+    response = client.get("/demo")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "MedVigil" in response.text
+    assert "Clinical Audit Streaming Demo" in response.text
+
+

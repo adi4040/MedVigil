@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MedVigil - Clinical Audit Streaming Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+    .cursor-blink { animation: blink 1s infinite; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-950/70 backdrop-blur sticky top-0 z-20 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-teal-500/20 border border-teal-500/40 flex items-center justify-center text-teal-400 font-bold text-lg">
+          M
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+            MedVigil <span class="text-xs px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-300 border border-teal-500/30">SSE Streaming Demo</span>
+          </h1>
+          <p class="text-xs text-slate-400">Clinical Documentation Gap & Medical Necessity Audit</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-4 text-xs">
+        <span class="flex items-center gap-1.5 text-slate-400">
+          <span id="conn-indicator" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+          Backend API Ready
+        </span>
+        <a href="/docs" target="_blank" class="px-3 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition">
+          Swagger Docs &rarr;
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Grid -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- Left Panel: Inputs & Presets (5 cols) -->
+    <div class="lg:col-span-5 flex flex-col space-y-4">
+      
+      <!-- Preset Cases Card -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+          Load Sample Case Preset
+        </label>
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="loadPreset('eval_001')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-900 border border-slate-700 hover:border-teal-500 hover:text-teal-300 transition text-left">
+            <span class="block font-semibold text-slate-200">eval_001</span>
+            <span class="text-[10px] text-slate-400 truncate block">Baseline Gaps</span>
+          </button>
+          <button onclick="loadPreset('eval_002')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:text-emerald-300 transition text-left">
+            <span class="block font-semibold text-slate-200">eval_002</span>
+            <span class="text-[10px] text-slate-400 truncate block">All Criteria Met</span>
+          </button>
+          <button onclick="loadPreset('eval_004')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-900 border border-slate-700 hover:border-amber-500 hover:text-amber-300 transition text-left">
+            <span class="block font-semibold text-slate-200">eval_004</span>
+            <span class="text-[10px] text-slate-400 truncate block">Red Flag Emergency</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Clinical Encounter Note Input -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 flex-1 flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-xs font-semibold uppercase tracking-wider text-slate-300">
+            Clinical Encounter Note
+          </label>
+          <span class="text-[10px] text-slate-500">De-identified note text</span>
+        </div>
+        <textarea id="note-input" rows="8" class="w-full flex-1 bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500 transition resize-none"></textarea>
+      </div>
+
+      <!-- Policy Rubric Input (collapsible) -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
+        <div class="flex items-center justify-between cursor-pointer" onclick="toggleRubric()">
+          <label class="text-xs font-semibold uppercase tracking-wider text-slate-300 cursor-pointer">
+            Policy Rubric (<span id="rubric-id-label">MRI_PA_001</span>)
+          </label>
+          <span id="rubric-toggle-btn" class="text-xs text-teal-400 hover:underline">Show &darr;</span>
+        </div>
+        <div id="rubric-container" class="hidden mt-3">
+          <textarea id="rubric-input" rows="6" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-300 focus:outline-none focus:border-teal-500 transition resize-none"></textarea>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex space-x-3 pt-1">
+        <button id="btn-start" onclick="startStream()" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-400 hover:to-emerald-500 text-white font-semibold text-sm shadow-lg shadow-teal-500/20 flex items-center justify-center space-x-2 transition disabled:opacity-50 disabled:cursor-not-allowed">
+          <svg id="btn-icon" class="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M4 4l12 6-12 6z"/></svg>
+          <span id="btn-text">Start Streaming Audit</span>
+        </button>
+        <button id="btn-stop" onclick="stopStream()" disabled class="py-3 px-4 rounded-xl bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 border border-slate-700 hover:border-rose-500/40 text-slate-300 font-semibold text-sm transition disabled:opacity-40 disabled:cursor-not-allowed">
+          Stop
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Right Panel: Streaming Output & Results (7 cols) -->
+    <div class="lg:col-span-7 flex flex-col space-y-4">
+      
+      <!-- Metrics Bar -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-between text-xs">
+        <div class="flex items-center space-x-2">
+          <span id="stream-status-dot" class="w-2.5 h-2.5 rounded-full bg-slate-600"></span>
+          <span id="stream-status-text" class="font-medium text-slate-300">Ready to stream</span>
+        </div>
+        <div class="flex items-center space-x-6 text-slate-400">
+          <div>
+            TTFT: <span id="stat-ttft" class="font-mono text-slate-200">--</span>
+          </div>
+          <div>
+            Duration: <span id="stat-duration" class="font-mono text-slate-200">--</span>
+          </div>
+          <div>
+            Chunks: <span id="stat-chunks" class="font-mono text-slate-200">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Output Tabs -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl flex-1 flex flex-col overflow-hidden min-h-[500px]">
+        
+        <!-- Tab Bar -->
+        <div class="flex border-b border-slate-800 px-4 pt-3 space-x-2 bg-slate-950">
+          <button id="tab-report" onclick="switchTab('report')" class="px-3 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-teal-500 text-teal-400 bg-slate-900/60">
+            Clinical Gap Report
+          </button>
+          <button id="tab-raw" onclick="switchTab('raw')" class="px-3 py-2 text-xs font-medium rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200">
+            Raw Token Stream (Terminal)
+          </button>
+        </div>
+
+        <!-- Tab 1: Formatted Report View -->
+        <div id="view-report" class="flex-1 p-5 overflow-y-auto space-y-4">
+          <div id="report-empty" class="h-full flex flex-col items-center justify-center text-center p-8 text-slate-500">
+            <svg class="w-12 h-12 stroke-current mb-3 opacity-40" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <p class="text-sm font-medium text-slate-400">No audit generated yet</p>
+            <p class="text-xs text-slate-600 mt-1">Select a preset case on the left and click "Start Streaming Audit".</p>
+          </div>
+
+          <!-- Report Container (hidden until done) -->
+          <div id="report-content" class="hidden space-y-4">
+            
+            <!-- Summary Header -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-lg p-4 flex items-center justify-between">
+              <div>
+                <span class="text-[10px] uppercase font-bold text-teal-400 tracking-wider">Evaluation Completed</span>
+                <h3 class="text-sm font-bold text-slate-100 mt-0.5" id="report-rubric-id">MRI_PA_001</h3>
+              </div>
+              <div id="status-counters" class="flex space-x-2 text-xs font-semibold">
+                <!-- Badges populated by JS -->
+              </div>
+            </div>
+
+            <!-- Missing / Unclear Action Checklist -->
+            <div id="gaps-card" class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 mb-2">
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                Actionable Clinician Clarifications Needed
+              </h4>
+              <ul id="gaps-list" class="space-y-1.5 text-xs text-amber-200/90 list-disc list-inside">
+                <!-- Items populated by JS -->
+              </ul>
+            </div>
+
+            <!-- Criteria Cards Container -->
+            <div id="criteria-cards" class="space-y-3">
+              <!-- Cards populated by JS -->
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Tab 2: Raw Token Console View -->
+        <div id="view-raw" class="hidden flex-1 p-4 bg-slate-950 font-mono text-xs overflow-y-auto">
+          <pre id="raw-stream-content" class="text-emerald-400 whitespace-pre-wrap leading-relaxed"></pre>
+          <span id="typing-cursor" class="inline-block w-2 h-4 bg-teal-400 cursor-blink ml-0.5"></span>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Presets & Streaming Script -->
+  <script>
+    const PRESETS = {
+      eval_001: {
+        note: `Chief Complaint:
+Patient reports lower-back pain for eight weeks.
+
+Clinical Findings:
+Persistent pain reported. Detailed neurological examination findings are not included.
+
+Previous Treatment:
+Treatment history is not documented.
+
+Plan:
+MRI of the lumbar spine requested.`,
+        rubric_id: "MRI_PA_001"
+      },
+      eval_002: {
+        note: `Chief Complaint:
+48-year-old patient presents with 10 weeks of severe lower-back pain radiating down the posterior left leg to the great toe.
+
+Physical Examination:
+Lumbar flexion limited by pain. Positive left straight-leg raise at 35 degrees. Decreased light-touch sensation along the left L5 dermatome and 4/5 weakness in left extensor hallucis longus. Patellar and Achilles reflexes 2+ bilaterally.
+
+Prior Diagnostic Testing:
+Lumbar spine X-ray performed 6 weeks ago demonstrated mild disc space narrowing at L4-L5 without spondylolisthesis or acute fracture.
+
+Conservative Treatment History:
+Patient completed 6 weeks of supervised physical therapy (twice weekly) and took naproxen 500 mg BID plus gabapentin 300 mg TID for 6 weeks with no improvement in radicular symptoms.
+
+Assessment and Plan:
+Persistent left L5 radiculopathy refractory to 6 weeks of conservative management. Requesting MRI of the lumbar spine without contrast to evaluate for L4-L5 disc herniation and nerve root compression prior to considering epidural steroid injection.`,
+        rubric_id: "MRI_PA_001"
+      },
+      eval_004: {
+        note: `Chief Complaint:
+Patient presents with 4 days of worsening severe lower-back pain accompanied by new-onset urinary retention and numbness in the groin area over the past 12 hours.
+
+Physical Examination:
+Decreased perineal sensation (saddle anesthesia), decreased rectal tone, and bilateral lower-extremity motor weakness (3/5 ankle dorsiflexion bilaterally). Achilles reflexes diminished bilaterally.
+
+Prior Diagnostic Testing:
+Plain radiographs bypassed due to acute neurological deterioration requiring urgent cross-sectional soft-tissue evaluation.
+
+Conservative Treatment History:
+Conservative therapy bypassed due to acute red-flag neurological deficits.
+
+Assessment and Plan:
+Suspected cauda equina syndrome. Urgent MRI of the lumbar spine without contrast ordered to evaluate for acute central disc herniation or epidural compression.`,
+        rubric_id: "MRI_PA_001"
+      }
+    };
+
+    const DEFAULT_RUBRIC = `RUBRIC ID: MRI_PA_001
+PROCEDURE: MRI Lumbar Spine (Without Contrast)
+PURPOSE: Evaluate whether the clinical note documents the required evidence for medical-necessity review.
+
+CRITERIA TO EVALUATE:
+
+1. Symptoms and Duration
+- Requirement: The note must document the patient's primary lumbar/back symptoms (e.g., axial pain, radiculopathy, numbness, weakness) AND the specific duration of those symptoms.
+- Unclear condition: Symptoms are mentioned without a timeframe, or duration is vague (e.g., "for a while", "recently") without a measurable period.
+
+2. Physical Examination Findings
+- Requirement: The note must document objective findings from a physical or neurological examination relevant to the lumbar spine (e.g., motor strength, sensory deficits, deep tendon reflexes, straight-leg raise test, range of motion, or gait assessment).
+- Unclear condition: The note states an exam was performed (e.g., "exam reviewed", "back examined") without stating specific clinical findings.
+
+3. Previous Diagnostic Testing
+- Requirement: The note must document results of prior plain-film radiographs (X-rays) of the lumbar spine, OR explicitly state why prior imaging is not clinically required (e.g., acute red-flag neurological deficits). If the note states imaging was not performed, but fails to provide a clinical exception/reason (like red-flag symptoms), mark it as 'missing'..
+- Unclear condition: The note mentions prior imaging was ordered or performed at an outside facility, but the findings are unavailable or not described.
+
+4. Conservative Treatment History
+- Requirement: For non-emergent presentations, the note must document at least 6 weeks of provider-directed conservative therapy (e.g., physical therapy, structured home exercise, prescription NSAIDs/neuropathic medications) and the patient's response, OR document a clinical exception (such as progressive neurological deficit or red-flag symptoms) where immediate imaging is indicated.
+- Unclear condition: Conservative therapy is mentioned without duration, adherence, or clinical outcome (e.g., "took pain pills occasionally", "PT was recommended previously").
+
+5. Clinical Indication and Medical Necessity
+- Requirement: The note must state the specific clinical reason for ordering the lumbar MRI (e.g., suspected disc herniation, spinal stenosis, cauda equina rule-out, or pre-procedural planning) linking the patient's presentation to the requested scan.
+- Unclear condition: The note merely states "MRI requested" or "Plan: Lumbar MRI" without stating the diagnostic question or suspected pathology.`;
+
+    // State
+    let abortController = null;
+    let activeTab = 'report';
+
+    function initPage() {
+      document.getElementById('rubric-input').value = DEFAULT_RUBRIC;
+      loadPreset('eval_001');
+    }
+
+    function loadPreset(key) {
+      if (!PRESETS[key]) return;
+      document.getElementById('note-input').value = PRESETS[key].note;
+      document.getElementById('rubric-id-label').innerText = PRESETS[key].rubric_id;
+    }
+
+    function toggleRubric() {
+      const el = document.getElementById('rubric-container');
+      const btn = document.getElementById('rubric-toggle-btn');
+      if (el.classList.contains('hidden')) {
+        el.classList.remove('hidden');
+        btn.innerHTML = 'Hide &uarr;';
+      } else {
+        el.classList.add('hidden');
+        btn.innerHTML = 'Show &darr;';
+      }
+    }
+
+    function switchTab(tab) {
+      activeTab = tab;
+      const reportBtn = document.getElementById('tab-report');
+      const rawBtn = document.getElementById('tab-raw');
+      const reportView = document.getElementById('view-report');
+      const rawView = document.getElementById('view-raw');
+
+      if (tab === 'report') {
+        reportBtn.className = "px-3 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-teal-500 text-teal-400 bg-slate-900/60";
+        rawBtn.className = "px-3 py-2 text-xs font-medium rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200";
+        reportView.classList.remove('hidden');
+        rawView.classList.add('hidden');
+      } else {
+        rawBtn.className = "px-3 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-teal-500 text-teal-400 bg-slate-900/60";
+        reportBtn.className = "px-3 py-2 text-xs font-medium rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200";
+        rawView.classList.remove('hidden');
+        reportView.classList.add('hidden');
+      }
+    }
+
+    async function startStream() {
+      const note = document.getElementById('note-input').value.trim();
+      const rubric = document.getElementById('rubric-input').value.trim();
+      if (!note || !rubric) {
+        alert("Please provide both a clinical note and a policy rubric.");
+        return;
+      }
+
+      // UI Reset
+      abortController = new AbortController();
+      document.getElementById('btn-start').disabled = true;
+      document.getElementById('btn-stop').disabled = false;
+      document.getElementById('raw-stream-content').textContent = '';
+      document.getElementById('typing-cursor').classList.remove('hidden');
+      document.getElementById('stat-ttft').textContent = '--';
+      document.getElementById('stat-duration').textContent = '--';
+      document.getElementById('stat-chunks').textContent = '0';
+      document.getElementById('stream-status-dot').className = "w-2.5 h-2.5 rounded-full bg-teal-400 animate-pulse";
+      document.getElementById('stream-status-text').textContent = "Streaming tokens...";
+
+      // Switch to raw view during live stream so user can watch tokens type
+      switchTab('raw');
+
+      const startTime = performance.now();
+      let ttft = null;
+      let chunkCount = 0;
+
+      try {
+        const response = await fetch('/api/v1/audit/evaluate/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clinical_note: note, policy_rubric: rubric }),
+          signal: abortController.signal
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const messages = buffer.split('\n\n');
+          buffer = messages.pop(); // Keep trailing incomplete message
+
+          for (const msg of messages) {
+            if (!msg.trim()) continue;
+            const lines = msg.split('\n');
+            let eventType = 'token';
+            let dataStr = '';
+
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                eventType = line.replace('event:', '').trim();
+              } else if (line.startsWith('data:')) {
+                dataStr = line.replace('data:', '').trim();
+              }
+            }
+
+            if (!dataStr) continue;
+            const chunk = JSON.parse(dataStr);
+
+            if (eventType === 'token' && chunk.text) {
+              if (ttft === null) {
+                ttft = ((performance.now() - startTime) / 1000).toFixed(2);
+                document.getElementById('stat-ttft').textContent = `${ttft}s`;
+              }
+              chunkCount++;
+              document.getElementById('stat-chunks').textContent = chunkCount;
+              document.getElementById('raw-stream-content').textContent += chunk.text;
+              
+              // Auto scroll raw view
+              const rawView = document.getElementById('view-raw');
+              rawView.scrollTop = rawView.scrollHeight;
+            } else if (eventType === 'done' && chunk.report) {
+              renderReport(chunk.report);
+              // Switch to report view to display the formatted audit
+              switchTab('report');
+            } else if (eventType === 'error') {
+              alert(`Stream Error: ${chunk.error}`);
+            }
+          }
+
+          const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+          document.getElementById('stat-duration').textContent = `${elapsed}s`;
+        }
+
+        document.getElementById('stream-status-dot').className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
+        document.getElementById('stream-status-text').textContent = "Stream Completed";
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          document.getElementById('stream-status-text').textContent = "Stream Aborted";
+          document.getElementById('stream-status-dot').className = "w-2.5 h-2.5 rounded-full bg-amber-500";
+        } else {
+          document.getElementById('stream-status-text').textContent = `Error: ${err.message}`;
+          document.getElementById('stream-status-dot').className = "w-2.5 h-2.5 rounded-full bg-rose-500";
+        }
+      } finally {
+        document.getElementById('btn-start').disabled = false;
+        document.getElementById('btn-stop').disabled = true;
+        document.getElementById('typing-cursor').classList.add('hidden');
+      }
+    }
+
+    function stopStream() {
+      if (abortController) {
+        abortController.abort();
+      }
+    }
+
+    function renderReport(report) {
+      document.getElementById('report-empty').classList.add('hidden');
+      document.getElementById('report-content').classList.remove('hidden');
+      document.getElementById('report-rubric-id').textContent = report.rubric_id || "CLINICAL_AUDIT";
+
+      // Counters
+      const counts = { met: 0, unclear: 0, missing: 0 };
+      report.evaluations.forEach(ev => {
+        const s = (ev.status || '').toLowerCase();
+        if (counts[s] !== undefined) counts[s]++;
+      });
+
+      document.getElementById('status-counters').innerHTML = `
+        <span class="px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">${counts.met} Met</span>
+        <span class="px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30">${counts.unclear} Unclear</span>
+        <span class="px-2.5 py-1 rounded-md bg-rose-500/15 text-rose-400 border border-rose-500/30">${counts.missing} Missing</span>
+      `;
+
+      // Gaps checklist
+      const gapsCard = document.getElementById('gaps-card');
+      const gapsList = document.getElementById('gaps-list');
+      if (report.missing_or_unclear_summary && report.missing_or_unclear_summary.length > 0) {
+        gapsCard.classList.remove('hidden');
+        gapsList.innerHTML = report.missing_or_unclear_summary.map(gap => `<li>${gap}</li>`).join('');
+      } else {
+        gapsCard.classList.add('hidden');
+      }
+
+      // Criteria Cards
+      const container = document.getElementById('criteria-cards');
+      container.innerHTML = report.evaluations.map(ev => {
+        const status = (ev.status || '').toLowerCase();
+        let badgeColor = "bg-slate-800 text-slate-300 border-slate-700";
+        let cardBorder = "border-slate-800";
+
+        if (status === 'met') {
+          badgeColor = "bg-emerald-500/15 text-emerald-300 border-emerald-500/40";
+          cardBorder = "border-emerald-500/30";
+        } else if (status === 'unclear') {
+          badgeColor = "bg-amber-500/15 text-amber-300 border-amber-500/40";
+          cardBorder = "border-amber-500/30";
+        } else if (status === 'missing') {
+          badgeColor = "bg-rose-500/15 text-rose-300 border-rose-500/40";
+          cardBorder = "border-rose-500/30";
+        }
+
+        return `
+          <div class="bg-slate-900/90 border ${cardBorder} rounded-xl p-4 space-y-2 transition">
+            <div class="flex items-center justify-between">
+              <h5 class="text-xs font-bold text-slate-100">${ev.criterion}</h5>
+              <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${badgeColor}">
+                ${status.toUpperCase()}
+              </span>
+            </div>
+
+            ${ev.evidence ? `
+              <div class="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2.5 text-xs text-slate-300 font-mono">
+                <span class="text-[10px] uppercase font-bold text-slate-500 block mb-1">Extracted Quote (Evidence)</span>
+                "${ev.evidence}"
+              </div>
+            ` : ''}
+
+            <p class="text-xs text-slate-300 leading-relaxed">${ev.explanation || ''}</p>
+
+            ${ev.suggested_clarification ? `
+              <div class="mt-2 pt-2 border-t border-slate-800 flex items-start space-x-2 text-xs text-amber-300">
+                <span class="font-bold uppercase text-[10px] tracking-wider text-amber-400 mt-0.5">&rarr; Clarification:</span>
+                <span class="flex-1">${ev.suggested_clarification}</span>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Initialize on page load
+    window.addEventListener('DOMContentLoaded', initPage);
+  </script>
+</body>
+</html>
+

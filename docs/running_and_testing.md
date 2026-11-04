@@ -35,6 +35,7 @@ Once the server is running, you can explore and test the endpoints directly in y
 | **Root Welcome** | [http://127.0.0.1:8000/](http://127.0.0.1:8000/) | Service welcome message |
 | **Health Check** | [http://127.0.0.1:8000/api/v1/health](http://127.0.0.1:8000/api/v1/health) | Returns service health, name, and version |
 | **Readiness Check** | [http://127.0.0.1:8000/api/v1/ready](http://127.0.0.1:8000/api/v1/ready) | Liveness / readiness probe for orchestration |
+| **Interactive Demo** | [http://127.0.0.1:8000/demo](http://127.0.0.1:8000/demo) | Interactive web interface for real-time SSE streaming & gap visualization |
 | **Clinical Audit** | `POST http://127.0.0.1:8000/api/v1/audit/evaluate` | Evaluates clinical note against policy rubric |
 | **Audit SSE Stream** | `POST http://127.0.0.1:8000/api/v1/audit/evaluate/stream` | Streams real-time token deltas and validated report via SSE |
 
