@@ -79,9 +79,16 @@ class AuditRequest(BaseModel):
     rubric_id: Optional[str] = Field(
         None, description="Optional override/explicit rubric ID."
     )
+    temperature: Optional[float] = Field(
+        0.0,
+        ge=0.0,
+        le=2.0,
+        description="Sampling temperature for the LLM (default: 0.0).",
+    )
 
 
 class StreamEventType(str, Enum):
+    STATUS = "status"
     TOKEN = "token"
     DONE = "done"
     ERROR = "error"
@@ -92,30 +99,42 @@ class StreamChunk(BaseModel):
 
     Designed for clean serialization to Server-Sent Events (SSE) by the API layer.
     """
+
     event: StreamEventType = Field(
         default=StreamEventType.TOKEN,
-        description="Type of stream event: 'token', 'done', or 'error'."
+        description="Type of stream event: 'status', 'token', 'done', or 'error'.",
+    )
+    message: Optional[str] = Field(
+        None,
+        description="Informational status or progress message (present when event='status').",
     )
     text: Optional[str] = Field(
         None,
-        description="Text delta/token emitted by the LLM (present when event='token')."
+        description="Text delta/token emitted by the LLM (present when event='token').",
     )
     report: Optional[ClinicalGapReport] = Field(
         None,
-        description="Full parsed and validated report (present when event='done')."
+        description="Full parsed and validated report (present when event='done').",
     )
     error: Optional[str] = Field(
         None,
-        description="Error description if streaming or validation failed (present when event='error')."
+        description="Error description if streaming or validation failed (present when event='error').",
     )
+    retries: Optional[int] = Field(
+        0, description="Number of retries attempted prior to or during the event."
+    )
+
+    @classmethod
+    def status_chunk(cls, message: str, retries: int = 0) -> "StreamChunk":
+        return cls(event=StreamEventType.STATUS, message=message, retries=retries)
 
     @classmethod
     def token_chunk(cls, text: str) -> "StreamChunk":
         return cls(event=StreamEventType.TOKEN, text=text)
 
     @classmethod
-    def done_chunk(cls, report: ClinicalGapReport) -> "StreamChunk":
-        return cls(event=StreamEventType.DONE, report=report)
+    def done_chunk(cls, report: ClinicalGapReport, retries: int = 0) -> "StreamChunk":
+        return cls(event=StreamEventType.DONE, report=report, retries=retries)
 
     @classmethod
     def error_chunk(cls, error: str) -> "StreamChunk":
@@ -127,15 +146,25 @@ class AuditStreamAccumulator:
 
     def __init__(self):
         self.tokens: List[str] = []
+        self.status_messages: List[str] = []
         self.final_report: Optional[ClinicalGapReport] = None
         self.error: Optional[str] = None
+        self.retries: int = 0
 
-    async def consume(self, stream: AsyncIterator[StreamChunk]) -> "AuditStreamAccumulator":
+    async def consume(
+        self, stream: AsyncIterator[StreamChunk]
+    ) -> "AuditStreamAccumulator":
         async for chunk in stream:
-            if chunk.event == StreamEventType.TOKEN and chunk.text:
+            if chunk.event == StreamEventType.STATUS and chunk.message:
+                self.status_messages.append(chunk.message)
+                if chunk.retries:
+                    self.retries = max(self.retries, chunk.retries)
+            elif chunk.event == StreamEventType.TOKEN and chunk.text:
                 self.tokens.append(chunk.text)
             elif chunk.event == StreamEventType.DONE and chunk.report:
                 self.final_report = chunk.report
+                if chunk.retries:
+                    self.retries = max(self.retries, chunk.retries)
             elif chunk.event == StreamEventType.ERROR and chunk.error:
                 self.error = chunk.error
         return self
@@ -143,4 +172,3 @@ class AuditStreamAccumulator:
     @property
     def accumulated_text(self) -> str:
         return "".join(self.tokens)
-

@@ -254,6 +254,12 @@ async def test_stream_chunk_json_serialization_for_sse():
     assert '"event":"error"' in dumped_err
     assert '"error":"Service unavailable"' in dumped_err
 
+    status_chunk = StreamChunk.status_chunk("Retrying connection...", retries=2)
+    dumped_status = status_chunk.model_dump_json()
+    assert '"event":"status"' in dumped_status
+    assert '"message":"Retrying connection..."' in dumped_status
+    assert '"retries":2' in dumped_status
+
 
 def test_sse_endpoint_stream_success(client):
     from app.main import app
@@ -276,6 +282,8 @@ def test_sse_endpoint_stream_success(client):
     app.dependency_overrides.clear()
 
     # Verify SSE formatting
+    assert "event: status" in raw_text
+    assert "Evaluating clinical note against rubric" in raw_text
     assert "event: token" in raw_text
     assert "event: done" in raw_text
     assert "data: {" in raw_text

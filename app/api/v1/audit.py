@@ -29,6 +29,7 @@ def evaluate_clinical_note(
             clinical_note=request.clinical_note,
             policy_rubric=request.policy_rubric,
             rubric_id=request.rubric_id,
+            temperature=request.temperature,
         )
         return report
     except ValueError as e:
@@ -69,11 +70,16 @@ async def stream_clinical_note_evaluation(
     """Stream clinical audit evaluation as Server-Sent Events (SSE)."""
 
     async def event_generator():
+        # Emit an immediate status event to give instantaneous feedback to the client
+        initial_status = StreamChunk.status_chunk("Evaluating clinical note against rubric...")
+        yield f"event: {initial_status.event.value}\ndata: {initial_status.model_dump_json()}\n\n"
+
         try:
             async for chunk in llm_client.stream_audit(
                 clinical_note=request.clinical_note,
                 policy_rubric=request.policy_rubric,
                 rubric_id=request.rubric_id,
+                temperature=request.temperature,
             ):
                 yield f"event: {chunk.event.value}\ndata: {chunk.model_dump_json()}\n\n"
         except Exception as exc:

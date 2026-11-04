@@ -54,6 +54,12 @@ def parse_args():
         default=0.015,
         help="Delay in seconds between tokens for mock client (default: 0.015s).",
     )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.0,
+        help="LLM sampling temperature (default: 0.0).",
+    )
     return parser.parse_args()
 
 
@@ -98,7 +104,7 @@ async def main():
 
     accumulator = AuditStreamAccumulator()
 
-    async for chunk in client.stream_audit(clinical_note, policy_rubric):
+    async for chunk in client.stream_audit(clinical_note, policy_rubric, temperature=args.temperature):
         if chunk.event == StreamEventType.TOKEN and chunk.text:
             if ttft is None:
                 ttft = time.time() - start_time

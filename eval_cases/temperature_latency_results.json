@@ -1,0 +1,202 @@
+{
+  "timestamp": "2026-11-04T13:09:57Z",
+  "provider": "gemini",
+  "model": "gemini-3.5-flash-lite",
+  "temperatures_tested": [
+    0.0,
+    0.3,
+    0.7,
+    1.0
+  ],
+  "runs_per_temperature": 3,
+  "temperature_benchmarks": [
+    {
+      "temperature": 0.0,
+      "avg_ttft_sec": 17.355,
+      "avg_gen_time_sec": 1.319,
+      "avg_total_latency_sec": 18.674,
+      "avg_chars_per_sec": 164.0,
+      "avg_retries": 0,
+      "valid_schema_rate_pct": 100.0,
+      "runs": [
+        {
+          "temperature": 0.0,
+          "ttft_sec": 17.748,
+          "gen_time_sec": 1.351,
+          "total_latency_sec": 19.099,
+          "chunks_count": 24,
+          "total_chars": 3007,
+          "retries_count": 0,
+          "chars_per_sec": 157.4,
+          "valid_schema": true,
+          "error": null
+        },
+        {
+          "temperature": 0.0,
+          "ttft_sec": 21.97,
+          "gen_time_sec": 1.132,
+          "total_latency_sec": 23.102,
+          "chunks_count": 23,
+          "total_chars": 2818,
+          "retries_count": 0,
+          "chars_per_sec": 122.0,
+          "valid_schema": true,
+          "error": null
+        },
+        {
+          "temperature": 0.0,
+          "ttft_sec": 12.348,
+          "gen_time_sec": 1.475,
+          "total_latency_sec": 13.822,
+          "chunks_count": 22,
+          "total_chars": 2939,
+          "retries_count": 0,
+          "chars_per_sec": 212.6,
+          "valid_schema": true,
+          "error": null
+        }
+      ]
+    },
+    {
+      "temperature": 0.3,
+      "avg_ttft_sec": 22.971,
+      "avg_gen_time_sec": 1.415,
+      "avg_total_latency_sec": 24.386,
+      "avg_chars_per_sec": 126.0,
+      "avg_retries": 0,
+      "valid_schema_rate_pct": 100.0,
+      "runs": [
+        {
+          "temperature": 0.3,
+          "ttft_sec": 23.122,
+          "gen_time_sec": 1.441,
+          "total_latency_sec": 24.563,
+          "chunks_count": 25,
+          "total_chars": 2992,
+          "retries_count": 0,
+          "chars_per_sec": 121.8,
+          "valid_schema": true,
+          "error": null
+        },
+        {
+          "temperature": 0.3,
+          "ttft_sec": 25.622,
+          "gen_time_sec": 1.351,
+          "total_latency_sec": 26.973,
+          "chunks_count": 26,
+          "total_chars": 3004,
+          "retries_count": 0,
+          "chars_per_sec": 111.4,
+          "valid_schema": true,
+          "error": null
+        },
+        {
+          "temperature": 0.3,
+          "ttft_sec": 20.17,
+          "gen_time_sec": 1.453,
+          "total_latency_sec": 21.623,
+          "chunks_count": 26,
+          "total_chars": 3134,
+          "retries_count": 0,
+          "chars_per_sec": 144.9,
+          "valid_schema": true,
+          "error": null
+        }
+      ]
+    },
+    {
+      "temperature": 0.7,
+      "avg_ttft_sec": 14.043,
+      "avg_gen_time_sec": 1.475,
+      "avg_total_latency_sec": 15.517,
+      "avg_chars_per_sec": 231.4,
+      "avg_retries": 0,
+      "valid_schema_rate_pct": 100.0,
+      "runs": [
+        {
+          "temperature": 0.7,
+          "ttft_sec": 9.585,
+          "gen_time_sec": 1.453,
+          "total_latency_sec": 11.037,
+          "chunks_count": 25,
+          "total_chars": 3164,
+          "retries_count": 0,
+          "chars_per_sec": 286.7,
+          "valid_schema": true,
+          "error": null
+        },
+        {
+          "temperature": 0.7,
+          "ttft_sec": 23.809,
+          "gen_time_sec": 1.442,
+          "total_latency_sec": 25.251,
+          "chunks_count": 24,
+          "total_chars": 2959,
+          "retries_count": 0,
+          "chars_per_sec": 117.2,
+          "valid_schema": true,
+          "error": null
+        },
+        {
+          "temperature": 0.7,
+          "ttft_sec": 8.734,
+          "gen_time_sec": 1.53,
+          "total_latency_sec": 10.264,
+          "chunks_count": 25,
+          "total_chars": 2979,
+          "retries_count": 0,
+          "chars_per_sec": 290.2,
+          "valid_schema": true,
+          "error": null
+        }
+      ]
+    },
+    {
+      "temperature": 1.0,
+      "avg_ttft_sec": 21.066,
+      "avg_gen_time_sec": 1.47,
+      "avg_total_latency_sec": 22.535,
+      "avg_chars_per_sec": 137.0,
+      "avg_retries": 0,
+      "valid_schema_rate_pct": 100.0,
+      "runs": [
+        {
+          "temperature": 1.0,
+          "ttft_sec": 20.912,
+          "gen_time_sec": 1.417,
+          "total_latency_sec": 22.328,
+          "chunks_count": 25,
+          "total_chars": 2893,
+          "retries_count": 0,
+          "chars_per_sec": 129.6,
+          "valid_schema": true,
+          "error": null
+        },
+        {
+          "temperature": 1.0,
+          "ttft_sec": 21.385,
+          "gen_time_sec": 1.548,
+          "total_latency_sec": 22.933,
+          "chunks_count": 28,
+          "total_chars": 3249,
+          "retries_count": 0,
+          "chars_per_sec": 141.7,
+          "valid_schema": true,
+          "error": null
+        },
+        {
+          "temperature": 1.0,
+          "ttft_sec": 20.901,
+          "gen_time_sec": 1.444,
+          "total_latency_sec": 22.345,
+          "chunks_count": 25,
+          "total_chars": 3123,
+          "retries_count": 0,
+          "chars_per_sec": 139.8,
+          "valid_schema": true,
+          "error": null
+        }
+      ]
+    }
+  ]
+}

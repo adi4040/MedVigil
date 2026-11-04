@@ -40,6 +40,7 @@ class BaseLLMClient(ABC):
         policy_rubric: str,
         rubric_id: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
+        temperature: Optional[float] = None,
     ) -> ClinicalGapReport:
         """Evaluate a clinical note against a policy rubric and return a ClinicalGapReport."""
         pass
@@ -51,6 +52,7 @@ class BaseLLMClient(ABC):
         policy_rubric: str,
         rubric_id: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
+        temperature: Optional[float] = None,
     ) -> AsyncIterator[StreamChunk]:
         """Stream audit evaluation tokens as StreamChunk objects, concluding with a validated report."""
         pass
@@ -89,9 +91,11 @@ class OpenAIAuditClient(BaseLLMClient):
         policy_rubric: str,
         rubric_id: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
+        temperature: Optional[float] = None,
     ) -> ClinicalGapReport:
         user_prompt = create_audit_user_prompt(clinical_note, policy_rubric)
         retry_cfg = retry_config or RetryConfig()
+        temp = 0.0 if temperature is None else temperature
 
         messages: List[Dict[str, str]] = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -106,6 +110,7 @@ class OpenAIAuditClient(BaseLLMClient):
                     model=self.model,
                     messages=messages,
                     response_format=ClinicalGapReport,
+                    temperature=temp,
                 )
 
                 choice = completion.choices[0]
@@ -175,9 +180,11 @@ class OpenAIAuditClient(BaseLLMClient):
         policy_rubric: str,
         rubric_id: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
+        temperature: Optional[float] = None,
     ) -> AsyncIterator[StreamChunk]:
         user_prompt = create_audit_user_prompt(clinical_note, policy_rubric)
         retry_cfg = retry_config or RetryConfig()
+        temp = 0.0 if temperature is None else temperature
 
         messages: List[Dict[str, str]] = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -194,6 +201,7 @@ class OpenAIAuditClient(BaseLLMClient):
                     model=self.model,
                     messages=messages,
                     response_format=ClinicalGapReport,
+                    temperature=temp,
                 ) as stream:
                     async for event in stream:
                         if event.type == "content.delta" and event.delta:
@@ -214,7 +222,7 @@ class OpenAIAuditClient(BaseLLMClient):
 
                     if rubric_id and report.rubric_id != rubric_id:
                         report.rubric_id = rubric_id
-                    yield StreamChunk.done_chunk(report=report)
+                    yield StreamChunk.done_chunk(report=report, retries=attempt)
                     return
 
             except Exception as exc:
@@ -227,6 +235,10 @@ class OpenAIAuditClient(BaseLLMClient):
                     delay = calculate_backoff(attempt, retry_cfg)
                     logger.warning(
                         f"[OpenAIAuditClient] Transient error before stream start on attempt {attempt + 1}: {exc}. Retrying in {delay}s..."
+                    )
+                    yield StreamChunk.status_chunk(
+                        message=f"Transient provider error ({exc}). Retrying in {delay}s (attempt {attempt + 1}/{retry_cfg.max_retries})...",
+                        retries=attempt + 1,
                     )
                     await asyncio.sleep(delay)
                     continue
@@ -271,11 +283,13 @@ class GeminiAuditClient(BaseLLMClient):
         policy_rubric: str,
         rubric_id: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
+        temperature: Optional[float] = None,
     ) -> ClinicalGapReport:
         from google.genai import types
 
         user_prompt = create_audit_user_prompt(clinical_note, policy_rubric)
         retry_cfg = retry_config or RetryConfig()
+        temp = 0.0 if temperature is None else temperature
 
         contents: List[Any] = [
             types.Content(
@@ -293,7 +307,7 @@ class GeminiAuditClient(BaseLLMClient):
                     contents=contents,
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_PROMPT,
-                        temperature=0.0,
+                        temperature=temp,
                         response_mime_type="application/json",
                         response_schema=ClinicalGapReport,
                     ),
@@ -368,11 +382,13 @@ class GeminiAuditClient(BaseLLMClient):
         policy_rubric: str,
         rubric_id: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
+        temperature: Optional[float] = None,
     ) -> AsyncIterator[StreamChunk]:
         from google.genai import types
 
         user_prompt = create_audit_user_prompt(clinical_note, policy_rubric)
         retry_cfg = retry_config or RetryConfig()
+        temp = 0.0 if temperature is None else temperature
 
         contents: List[Any] = [
             types.Content(
@@ -392,7 +408,7 @@ class GeminiAuditClient(BaseLLMClient):
                     contents=contents,
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_PROMPT,
-                        temperature=0.0,
+                        temperature=temp,
                         response_mime_type="application/json",
                         response_schema=ClinicalGapReport,
                     ),
@@ -411,7 +427,7 @@ class GeminiAuditClient(BaseLLMClient):
                 report = ClinicalGapReport.model_validate_json(full_text)
                 if rubric_id and report.rubric_id != rubric_id:
                     report.rubric_id = rubric_id
-                yield StreamChunk.done_chunk(report=report)
+                yield StreamChunk.done_chunk(report=report, retries=attempt)
                 return
 
             except Exception as exc:
@@ -424,6 +440,10 @@ class GeminiAuditClient(BaseLLMClient):
                     delay = calculate_backoff(attempt, retry_cfg)
                     logger.warning(
                         f"[GeminiAuditClient] Transient error before stream start on attempt {attempt + 1}: {exc}. Retrying in {delay}s..."
+                    )
+                    yield StreamChunk.status_chunk(
+                        message=f"Transient provider error ({exc}). Retrying in {delay}s (attempt {attempt + 1}/{retry_cfg.max_retries})...",
+                        retries=attempt + 1,
                     )
                     await asyncio.sleep(delay)
                     continue
@@ -456,6 +476,7 @@ class MockAuditClient(BaseLLMClient):
         policy_rubric: str,
         rubric_id: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
+        temperature: Optional[float] = None,
     ) -> ClinicalGapReport:
         # Extract rubric ID from text if present
         detected_rubric_id = rubric_id or "RUBRIC_DEFAULT"
@@ -525,8 +546,9 @@ class MockAuditClient(BaseLLMClient):
         policy_rubric: str,
         rubric_id: Optional[str] = None,
         retry_config: Optional[RetryConfig] = None,
+        temperature: Optional[float] = None,
     ) -> AsyncIterator[StreamChunk]:
-        report = self.evaluate_audit(clinical_note, policy_rubric, rubric_id, retry_config)
+        report = self.evaluate_audit(clinical_note, policy_rubric, rubric_id, retry_config, temperature)
         raw_json = report.model_dump_json(indent=2)
 
         chunk_size = self.chunk_size or 20
@@ -536,7 +558,7 @@ class MockAuditClient(BaseLLMClient):
             if self.chunk_delay > 0:
                 await asyncio.sleep(self.chunk_delay)
 
-        yield StreamChunk.done_chunk(report=report)
+        yield StreamChunk.done_chunk(report=report, retries=0)
 
 
 def get_llm_client(provider: Optional[str] = None) -> BaseLLMClient:
