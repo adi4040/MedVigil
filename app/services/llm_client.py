@@ -1,9 +1,10 @@
+import asyncio
 import json
 import logging
 import re
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
@@ -18,9 +19,12 @@ from app.core.retry import (
     is_transient_error,
 )
 from app.schemas.audit import (
+    AuditStreamAccumulator,
     ClinicalGapReport,
     CriterionEvaluation,
     CriterionStatus,
+    StreamChunk,
+    StreamEventType,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,6 +44,17 @@ class BaseLLMClient(ABC):
         """Evaluate a clinical note against a policy rubric and return a ClinicalGapReport."""
         pass
 
+    @abstractmethod
+    async def stream_audit(
+        self,
+        clinical_note: str,
+        policy_rubric: str,
+        rubric_id: Optional[str] = None,
+        retry_config: Optional[RetryConfig] = None,
+    ) -> AsyncIterator[StreamChunk]:
+        """Stream audit evaluation tokens as StreamChunk objects, concluding with a validated report."""
+        pass
+
 
 class OpenAIAuditClient(BaseLLMClient):
     """OpenAI / OpenAI-compatible client using native Pydantic structured outputs."""
@@ -50,7 +65,7 @@ class OpenAIAuditClient(BaseLLMClient):
         model: Optional[str] = None,
         base_url: Optional[str] = None,
     ):
-        from openai import OpenAI
+        from openai import AsyncOpenAI, OpenAI
 
         effective_key = api_key or settings.get_effective_api_key()
         if not effective_key and not base_url:
@@ -59,6 +74,10 @@ class OpenAIAuditClient(BaseLLMClient):
             )
 
         self.client = OpenAI(
+            api_key=effective_key or "dummy-key-for-local",
+            base_url=base_url or settings.LLM_BASE_URL,
+        )
+        self.async_client = AsyncOpenAI(
             api_key=effective_key or "dummy-key-for-local",
             base_url=base_url or settings.LLM_BASE_URL,
         )
@@ -148,6 +167,82 @@ class OpenAIAuditClient(BaseLLMClient):
 
         raise AuditEvaluationExhaustedError(
             f"Evaluation attempts exhausted without response. Last error: {last_error}"
+        )
+
+    async def stream_audit(
+        self,
+        clinical_note: str,
+        policy_rubric: str,
+        rubric_id: Optional[str] = None,
+        retry_config: Optional[RetryConfig] = None,
+    ) -> AsyncIterator[StreamChunk]:
+        user_prompt = create_audit_user_prompt(clinical_note, policy_rubric)
+        retry_cfg = retry_config or RetryConfig()
+
+        messages: List[Dict[str, str]] = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        accumulated_text: List[str] = []
+        first_chunk_received = False
+        last_error: Optional[Exception] = None
+
+        for attempt in range(retry_cfg.max_retries + 1):
+            try:
+                async with self.async_client.beta.chat.completions.stream(
+                    model=self.model,
+                    messages=messages,
+                    response_format=ClinicalGapReport,
+                ) as stream:
+                    async for event in stream:
+                        if event.type == "content.delta" and event.delta:
+                            first_chunk_received = True
+                            accumulated_text.append(event.delta)
+                            yield StreamChunk.token_chunk(text=event.delta)
+
+                    final_completion = await stream.get_final_completion()
+                    report = None
+                    if (
+                        final_completion.choices
+                        and final_completion.choices[0].message.parsed
+                    ):
+                        report = final_completion.choices[0].message.parsed
+                    else:
+                        full_text = "".join(accumulated_text)
+                        report = ClinicalGapReport.model_validate_json(full_text)
+
+                    if rubric_id and report.rubric_id != rubric_id:
+                        report.rubric_id = rubric_id
+                    yield StreamChunk.done_chunk(report=report)
+                    return
+
+            except Exception as exc:
+                last_error = exc
+                if (
+                    not first_chunk_received
+                    and is_transient_error(exc)
+                    and attempt < retry_cfg.max_retries
+                ):
+                    delay = calculate_backoff(attempt, retry_cfg)
+                    logger.warning(
+                        f"[OpenAIAuditClient] Transient error before stream start on attempt {attempt + 1}: {exc}. Retrying in {delay}s..."
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                elif not first_chunk_received and is_transient_error(exc):
+                    raise AuditEvaluationExhaustedError(
+                        f"Exhausted {retry_cfg.max_retries + 1} stream attempts due to transient errors. Last error: {exc}"
+                    ) from exc
+                else:
+                    logger.error(
+                        f"[OpenAIAuditClient] Stream failed: {exc}", exc_info=True
+                    )
+                    yield StreamChunk.error_chunk(error=str(exc))
+                    return
+
+        raise AuditEvaluationExhaustedError(
+            f"Evaluation stream attempts exhausted without response. Last error: {last_error}"
         )
 
 
@@ -267,9 +362,93 @@ class GeminiAuditClient(BaseLLMClient):
             f"Evaluation attempts exhausted without response. Last error: {last_error}"
         )
 
+    async def stream_audit(
+        self,
+        clinical_note: str,
+        policy_rubric: str,
+        rubric_id: Optional[str] = None,
+        retry_config: Optional[RetryConfig] = None,
+    ) -> AsyncIterator[StreamChunk]:
+        from google.genai import types
+
+        user_prompt = create_audit_user_prompt(clinical_note, policy_rubric)
+        retry_cfg = retry_config or RetryConfig()
+
+        contents: List[Any] = [
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=user_prompt)],
+            )
+        ]
+
+        accumulated_text: List[str] = []
+        first_chunk_received = False
+        last_error: Optional[Exception] = None
+
+        for attempt in range(retry_cfg.max_retries + 1):
+            try:
+                response_stream = await self.client.aio.models.generate_content_stream(
+                    model=self.model,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_PROMPT,
+                        temperature=0.0,
+                        response_mime_type="application/json",
+                        response_schema=ClinicalGapReport,
+                    ),
+                )
+
+                async for chunk in response_stream:
+                    if chunk.text:
+                        first_chunk_received = True
+                        accumulated_text.append(chunk.text)
+                        yield StreamChunk.token_chunk(text=chunk.text)
+
+                full_text = "".join(accumulated_text)
+                if not full_text.strip():
+                    raise RuntimeError("Gemini returned an empty response stream.")
+
+                report = ClinicalGapReport.model_validate_json(full_text)
+                if rubric_id and report.rubric_id != rubric_id:
+                    report.rubric_id = rubric_id
+                yield StreamChunk.done_chunk(report=report)
+                return
+
+            except Exception as exc:
+                last_error = exc
+                if (
+                    not first_chunk_received
+                    and is_transient_error(exc)
+                    and attempt < retry_cfg.max_retries
+                ):
+                    delay = calculate_backoff(attempt, retry_cfg)
+                    logger.warning(
+                        f"[GeminiAuditClient] Transient error before stream start on attempt {attempt + 1}: {exc}. Retrying in {delay}s..."
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                elif not first_chunk_received and is_transient_error(exc):
+                    raise AuditEvaluationExhaustedError(
+                        f"Exhausted {retry_cfg.max_retries + 1} stream attempts due to transient errors. Last error: {exc}"
+                    ) from exc
+                else:
+                    logger.error(
+                        f"[GeminiAuditClient] Stream failed: {exc}", exc_info=True
+                    )
+                    yield StreamChunk.error_chunk(error=str(exc))
+                    return
+
+        raise AuditEvaluationExhaustedError(
+            f"Evaluation stream attempts exhausted without response. Last error: {last_error}"
+        )
+
 
 class MockAuditClient(BaseLLMClient):
     """Mock client for offline development, local unit testing, and sandbox verification."""
+
+    def __init__(self, chunk_delay: float = 0.0, chunk_size: int = 20):
+        self.chunk_delay = chunk_delay
+        self.chunk_size = chunk_size
 
     def evaluate_audit(
         self,
@@ -339,6 +518,25 @@ class MockAuditClient(BaseLLMClient):
             evaluations=evaluations,
             missing_or_unclear_summary=missing_summary,
         )
+
+    async def stream_audit(
+        self,
+        clinical_note: str,
+        policy_rubric: str,
+        rubric_id: Optional[str] = None,
+        retry_config: Optional[RetryConfig] = None,
+    ) -> AsyncIterator[StreamChunk]:
+        report = self.evaluate_audit(clinical_note, policy_rubric, rubric_id, retry_config)
+        raw_json = report.model_dump_json(indent=2)
+
+        chunk_size = self.chunk_size or 20
+        for i in range(0, len(raw_json), chunk_size):
+            chunk = raw_json[i : i + chunk_size]
+            yield StreamChunk.token_chunk(text=chunk)
+            if self.chunk_delay > 0:
+                await asyncio.sleep(self.chunk_delay)
+
+        yield StreamChunk.done_chunk(report=report)
 
 
 def get_llm_client(provider: Optional[str] = None) -> BaseLLMClient:

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional
+from typing import AsyncIterator, List, Optional
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -79,3 +79,68 @@ class AuditRequest(BaseModel):
     rubric_id: Optional[str] = Field(
         None, description="Optional override/explicit rubric ID."
     )
+
+
+class StreamEventType(str, Enum):
+    TOKEN = "token"
+    DONE = "done"
+    ERROR = "error"
+
+
+class StreamChunk(BaseModel):
+    """Structured streaming item emitted during LLM token streaming.
+
+    Designed for clean serialization to Server-Sent Events (SSE) by the API layer.
+    """
+    event: StreamEventType = Field(
+        default=StreamEventType.TOKEN,
+        description="Type of stream event: 'token', 'done', or 'error'."
+    )
+    text: Optional[str] = Field(
+        None,
+        description="Text delta/token emitted by the LLM (present when event='token')."
+    )
+    report: Optional[ClinicalGapReport] = Field(
+        None,
+        description="Full parsed and validated report (present when event='done')."
+    )
+    error: Optional[str] = Field(
+        None,
+        description="Error description if streaming or validation failed (present when event='error')."
+    )
+
+    @classmethod
+    def token_chunk(cls, text: str) -> "StreamChunk":
+        return cls(event=StreamEventType.TOKEN, text=text)
+
+    @classmethod
+    def done_chunk(cls, report: ClinicalGapReport) -> "StreamChunk":
+        return cls(event=StreamEventType.DONE, report=report)
+
+    @classmethod
+    def error_chunk(cls, error: str) -> "StreamChunk":
+        return cls(event=StreamEventType.ERROR, error=error)
+
+
+class AuditStreamAccumulator:
+    """Helper to consume an AsyncIterator[StreamChunk], collecting tokens and the final report."""
+
+    def __init__(self):
+        self.tokens: List[str] = []
+        self.final_report: Optional[ClinicalGapReport] = None
+        self.error: Optional[str] = None
+
+    async def consume(self, stream: AsyncIterator[StreamChunk]) -> "AuditStreamAccumulator":
+        async for chunk in stream:
+            if chunk.event == StreamEventType.TOKEN and chunk.text:
+                self.tokens.append(chunk.text)
+            elif chunk.event == StreamEventType.DONE and chunk.report:
+                self.final_report = chunk.report
+            elif chunk.event == StreamEventType.ERROR and chunk.error:
+                self.error = chunk.error
+        return self
+
+    @property
+    def accumulated_text(self) -> str:
+        return "".join(self.tokens)
+
