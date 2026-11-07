@@ -35,6 +35,7 @@
 - [Testing & Quality Assurance](#testing--quality-assurance)
 - [Clinical Safety & Enterprise Design](#clinical-safety--enterprise-design)
 - [Documentation Index](#documentation-index)
+- [License](#license)
 
 ---
 
@@ -397,6 +398,12 @@ pnpm build
 - [Running and Testing](docs/running_and_testing.md): CLI operations, manual endpoint testing, and CI commands.
 - [Project Architecture & Structure](docs/project_structure.md): Monorepo responsibilities, request lifecycles, and extension rules.
 - [Monorepo Implementation Plan](docs/nextjs_monorepo_implementation_plan.md): Architectural decisions and migration blueprint.
+
+---
+
+## License
+
+This project is licensed under the terms of the [MIT License](LICENSE).
 
 ---
 

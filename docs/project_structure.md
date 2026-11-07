@@ -33,7 +33,7 @@ MedV_micro_service/
 
 | Path | Responsibility |
 | --- | --- |
-| `apps/api/app/main.py` | FastAPI setup, CORS, routes, and legacy demo. |
+| `apps/api/app/main.py` | FastAPI setup, CORS, and route registration. |
 | `apps/api/app/api/v1/audit.py` | Synchronous and POST SSE audit endpoints. |
 | `apps/api/app/services/llm_client.py` | Gemini, OpenAI-compatible, and mock providers. |
 | `apps/api/app/schemas/audit.py` | Canonical Pydantic API and stream schemas. |

@@ -342,27 +342,6 @@
           "Health"
         ]
       }
-    },
-    "/demo": {
-      "get": {
-        "operationId": "demo_page_demo_get",
-        "responses": {
-          "200": {
-            "content": {
-              "text/html": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Interactive Streaming Clinical Audit Demo",
-        "tags": [
-          "Demo"
-        ]
-      }
     }
   }
 }

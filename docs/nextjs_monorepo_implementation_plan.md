@@ -408,7 +408,7 @@ Migration sequence:
 1. Build the Next.js `/audit` experience.
 2. Add `/demo` in Next.js as an alias or redirect to `/audit`.
 3. Route public `/demo` traffic to Next.js.
-4. Change the FastAPI `/demo` route to a configurable redirect or a restricted legacy path.
+4. Remove the superseded FastAPI `/demo` route and static page.
 5. Update backend tests for the selected behavior.
 6. Remove the legacy static page after a deprecation period.
 
