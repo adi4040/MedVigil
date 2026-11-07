@@ -1,0 +1,368 @@
+{
+  "components": {
+    "schemas": {
+      "AuditRequest": {
+        "properties": {
+          "clinical_note": {
+            "description": "Raw text of the clinical encounter note.",
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Clinical Note",
+            "type": "string"
+          },
+          "policy_rubric": {
+            "description": "Raw text or formatted policy rubric.",
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Policy Rubric",
+            "type": "string"
+          },
+          "rubric_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional override/explicit rubric ID.",
+            "title": "Rubric Id"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 0.0,
+            "description": "Sampling temperature for the LLM (default: 0.0).",
+            "title": "Temperature"
+          }
+        },
+        "required": [
+          "clinical_note",
+          "policy_rubric"
+        ],
+        "title": "AuditRequest",
+        "type": "object"
+      },
+      "ClinicalGapReport": {
+        "properties": {
+          "evaluations": {
+            "description": "Evaluation results for every criterion in the rubric.",
+            "items": {
+              "$ref": "#/components/schemas/CriterionEvaluation"
+            },
+            "title": "Evaluations",
+            "type": "array"
+          },
+          "missing_or_unclear_summary": {
+            "description": "List of actionable documentation gaps requiring clinician clarification.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Or Unclear Summary",
+            "type": "array"
+          },
+          "rubric_id": {
+            "description": "Identifier of the rubric used for evaluation.",
+            "title": "Rubric Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rubric_id",
+          "evaluations",
+          "missing_or_unclear_summary"
+        ],
+        "title": "ClinicalGapReport",
+        "type": "object"
+      },
+      "CriterionEvaluation": {
+        "properties": {
+          "criterion": {
+            "description": "Exact name of the criterion from the supplied rubric.",
+            "title": "Criterion",
+            "type": "string"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Verbatim quote from the clinical note addressing this criterion. Must be extracted first if any relevant documentation exists. Must be null if status is 'missing'.",
+            "title": "Evidence"
+          },
+          "explanation": {
+            "description": "Concise analysis of whether the documented quote satisfies the rubric requirement, only partially addresses it with vague/incomplete details, or completely fails to document it.",
+            "title": "Explanation",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CriterionStatus",
+            "description": "Evaluation status determined AFTER reviewing evidence and explanation: 'met' if fully satisfied; 'unclear' if mentioned but details, timeframe, or required thresholds are vague, incomplete, or ambiguous; 'missing' if the required clinical findings/prerequisites are absent or unfulfilled."
+          },
+          "suggested_clarification": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Specific documentation clarification needed from the treating clinician if status is 'missing' or 'unclear'. Must be null if status is 'met'.",
+            "title": "Suggested Clarification"
+          }
+        },
+        "required": [
+          "criterion",
+          "explanation",
+          "status"
+        ],
+        "title": "CriterionEvaluation",
+        "type": "object"
+      },
+      "CriterionStatus": {
+        "enum": [
+          "met",
+          "missing",
+          "unclear"
+        ],
+        "title": "CriterionStatus",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "MedV Microservice",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Root"
+      }
+    },
+    "/api/v1/audit/evaluate": {
+      "post": {
+        "description": "Compares a supplied clinical encounter note against a policy rubric and produces a structured gap report indicating met, missing, or unclear criteria.",
+        "operationId": "evaluate_clinical_note_api_v1_audit_evaluate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicalGapReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Audit Clinical Note Against Policy Rubric",
+        "tags": [
+          "Clinical Audit"
+        ]
+      }
+    },
+    "/api/v1/audit/evaluate/stream": {
+      "post": {
+        "description": "Streams token deltas from the LLM in real-time using Server-Sent Events (SSE). Each SSE event contains a JSON-serialized StreamChunk with an event type: 'status' for progress, 'token' for incremental text, 'done' for the complete validated ClinicalGapReport, or 'error' for failure details.",
+        "operationId": "stream_clinical_note_evaluation_api_v1_audit_evaluate_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "description": "SSE frames terminated by a blank line.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Server-Sent Events containing JSON-serialized StreamChunk payloads."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream Clinical Audit Evaluation via SSE",
+        "tags": [
+          "Clinical Audit"
+        ]
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "get_health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Service Health Check",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/v1/ready": {
+      "get": {
+        "operationId": "get_ready_api_v1_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Service Readiness Check",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/demo": {
+      "get": {
+        "operationId": "demo_page_demo_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Interactive Streaming Clinical Audit Demo",
+        "tags": [
+          "Demo"
+        ]
+      }
+    }
+  }
+}

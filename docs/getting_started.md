@@ -50,7 +50,7 @@ python -m pip install --upgrade pip
 ### Step 2.4: Install Dependencies
 Install all required production and testing libraries:
 ```powershell
-pip install -r requirements.txt
+python -m pip install -r apps/api/requirements.txt
 ```
 
 ---
@@ -59,9 +59,9 @@ pip install -r requirements.txt
 
 The microservice uses `pydantic-settings` to load and validate environment variables at startup.
 
-1. Copy the template `.env.example` file to create your local `.env`:
+1. Copy the API template to create the backend environment file:
    ```powershell
-   Copy-Item .env.example .env
+   Copy-Item apps/api/.env.example apps/api/.env
    ```
 2. Verify or update the variables in `.env`:
    ```ini
@@ -69,15 +69,27 @@ The microservice uses `pydantic-settings` to load and validate environment varia
    APP_VERSION=0.1.0
    DEBUG=false
    API_V1_PREFIX=/api/v1
+   LLM_PROVIDER=mock
    ```
+
+## 4. Frontend Workspace
+
+Install the pnpm workspace dependencies:
+
+```powershell
+corepack enable
+pnpm install
+```
+
+Node.js and pnpm versions are pinned through the root `package.json`.
 
 ---
 
-## 4. Summary Checklist
+## 5. Summary Checklist
 
 - [x] Python 3.13+ verified
 - [x] `.venv` virtual environment created
 - [x] `.venv` activated (with execution policy bypassed if needed)
-- [x] Packages installed from `requirements.txt`
-- [x] `.env` configuration file populated
-
+- [x] Python packages installed from `apps/api/requirements.txt`
+- [x] `apps/api/.env` configuration file populated
+- [x] pnpm workspace dependencies installed

@@ -1,0 +1,22 @@
+{
+  "name": "medv-monorepo",
+  "private": true,
+  "packageManager": "pnpm@11.6.0",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "dev:api": "pnpm --filter @medv/api dev",
+    "dev:web": "pnpm --filter @medv/web dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:api": "pnpm --filter @medv/api test",
+    "test:web": "pnpm --filter @medv/web test",
+    "test:e2e": "pnpm --filter @medv/web test:e2e",
+    "contracts:generate": "pnpm --filter @medv/api openapi && pnpm --filter @medv/api-client generate",
+    "contracts:check": "pnpm contracts:generate && git diff --exit-code -- packages/api-client/openapi packages/api-client/src/generated"
+  },
+  "devDependencies": {
+    "turbo": "2.11.10"
+  }
+}

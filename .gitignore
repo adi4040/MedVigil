@@ -19,3 +19,19 @@ __pycache__/
 Thumbs.db
 .vscode/
 .idea/
+
+# Node / monorepo
+node_modules/
+.pnpm-store/
+.turbo/
+.next/
+out/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Frontend environment files
+apps/web/.env.local
+apps/web/.env.*.local

@@ -16,7 +16,8 @@ from typing import Any, Dict, List, Optional
 
 # Add project root to sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+API_ROOT = PROJECT_ROOT / "apps" / "api"
+sys.path.insert(0, str(API_ROOT))
 
 from app.core.config import settings
 from app.schemas.audit import ClinicalGapReport
@@ -241,4 +242,3 @@ def run_eval():
 
 if __name__ == "__main__":
     run_eval()
-
