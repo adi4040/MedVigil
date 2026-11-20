@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   output: "standalone",
   reactStrictMode: true,
-  transpilePackages: ["@medv/api-client"],
+  transpilePackages: ["@medv/api-client", "@medv/ui"],
   async rewrites() {
     return [
       {

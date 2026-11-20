@@ -5,17 +5,47 @@ import { useState } from "react";
 import {
   auditRequestSchema,
   type ClinicalGapReport,
-  type CriterionStatus,
 } from "@medv/api-client";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+  Progress,
+  Textarea,
+} from "@medv/ui";
+import {
+  Activity,
+  AlertCircle,
+  AlertTriangle,
+  BookOpen,
+  CheckCircle2,
+  Clock,
+  FileSearch,
+  FileText,
+  Layers,
+  Menu,
+  Play,
+  RotateCcw,
+  ShieldCheck,
+  Sliders,
+  Sparkles,
+  Square,
+  Terminal,
+  XCircle,
+} from "lucide-react";
 
+import { AppSidebar } from "./app-sidebar";
 import { sampleClinicalNote, samplePolicyRubric } from "../fixtures";
 import { useAuditStream } from "../use-audit-stream";
-
-const statusStyles: Record<CriterionStatus, string> = {
-  met: "border-[#4d9078] bg-[#dff2e9] text-[#245743]",
-  unclear: "border-[#b59b28] bg-[#fff7c7] text-[#6c5b0e]",
-  missing: "border-[#cc5945] bg-[#ffe1da] text-[#7e2d20]",
-};
 
 function formatDuration(milliseconds: number | null): string {
   if (milliseconds === null) return "--";
@@ -32,62 +62,105 @@ function ReportView({ report }: { report: ClinicalGapReport }) {
   );
 
   return (
-    <div className="space-y-5" data-testid="audit-report">
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--line)] pb-4">
-        <div>
-          <p className="eyebrow">Validated report</p>
-          <h2 className="mt-1 font-[var(--font-display)] text-3xl">{report.rubric_id}</h2>
-        </div>
-        <div className="flex gap-2 text-xs font-bold uppercase tracking-wide">
-          <span className="border border-[#4d9078] bg-[#dff2e9] px-2 py-1">{counts.met} met</span>
-          <span className="border border-[#b59b28] bg-[#fff7c7] px-2 py-1">{counts.unclear} unclear</span>
-          <span className="border border-[#cc5945] bg-[#ffe1da] px-2 py-1">{counts.missing} missing</span>
-        </div>
-      </div>
+    <div className="space-y-6" data-testid="audit-report">
+      <Card className="border-border/80 shadow-xs">
+        <CardHeader className="border-b bg-muted/20 pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs uppercase tracking-wider font-semibold">
+                  Validated Report
+                </Badge>
+                <span className="text-xs text-muted-foreground font-mono">ID: {report.rubric_id}</span>
+              </div>
+              <CardTitle className="mt-2 text-2xl font-bold tracking-tight">
+                {report.rubric_id}
+              </CardTitle>
+            </div>
+            <div className="flex gap-2">
+              <Badge variant="met" className="px-3 py-1 text-xs font-semibold shadow-xs">
+                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                {counts.met} Met
+              </Badge>
+              <Badge variant="unclear" className="px-3 py-1 text-xs font-semibold shadow-xs">
+                <AlertTriangle className="mr-1.5 h-3.5 w-3.5" />
+                {counts.unclear} Unclear
+              </Badge>
+              <Badge variant="missing" className="px-3 py-1 text-xs font-semibold shadow-xs">
+                <XCircle className="mr-1.5 h-3.5 w-3.5" />
+                {counts.missing} Missing
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
 
       {report.missing_or_unclear_summary.length > 0 && (
-        <section className="border-l-4 border-[var(--coral)] bg-[#fff8f1] p-4">
-          <h3 className="text-sm font-extrabold uppercase tracking-wide">Clarification queue</h3>
-          <ul className="mt-2 space-y-2 text-sm text-[var(--ink-soft)]">
-            {report.missing_or_unclear_summary.map((gap, index) => (
-              <li className="flex gap-2" key={`${index}-${gap}`}>
-                <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
-                <span>{gap}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <Alert variant="warning" className="border-amber-500/30 bg-amber-500/10 text-amber-900 shadow-xs">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <div className="ml-2">
+            <AlertTitle className="text-sm font-semibold tracking-wide">
+              Physician Clarification Queue ({report.missing_or_unclear_summary.length} items)
+            </AlertTitle>
+            <AlertDescription className="mt-2">
+              <ul className="space-y-1.5 text-xs text-amber-900/90 leading-relaxed">
+                {report.missing_or_unclear_summary.map((gap, index) => (
+                  <li className="flex items-start gap-2" key={`${index}-${gap}`}>
+                    <span className="font-mono font-bold text-amber-700">{String(index + 1).padStart(2, "0")}.</span>
+                    <span>{gap}</span>
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </div>
+        </Alert>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {report.evaluations.map((evaluation, index) => (
-          <article className="border border-[var(--line)] bg-white/75 p-4" key={`${index}-${evaluation.criterion}`}>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex gap-3">
-                <span className="font-[var(--font-display)] text-2xl text-[var(--ink-soft)]">
+          <Card
+            className="border-border/80 shadow-xs transition-shadow hover:shadow-sm"
+            key={`${index}-${evaluation.criterion}`}
+          >
+            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 p-4 pb-3 border-b bg-muted/15">
+              <div className="flex items-center gap-3">
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-muted text-xs font-bold font-mono text-muted-foreground">
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <h3 className="pt-1 font-bold">{evaluation.criterion}</h3>
+                <CardTitle className="text-base font-semibold text-foreground">
+                  {evaluation.criterion}
+                </CardTitle>
               </div>
-              <span className={`border px-2 py-1 text-[0.65rem] font-extrabold uppercase tracking-wider ${statusStyles[evaluation.status]}`}>
+              <Badge variant={evaluation.status} className="px-2.5 py-0.5 text-xs font-semibold capitalize">
+                {evaluation.status === "met" && <CheckCircle2 className="mr-1 h-3 w-3" />}
+                {evaluation.status === "unclear" && <AlertTriangle className="mr-1 h-3 w-3" />}
+                {evaluation.status === "missing" && <XCircle className="mr-1 h-3 w-3" />}
                 {evaluation.status}
-              </span>
-            </div>
+              </Badge>
+            </CardHeader>
+            <CardContent className="p-4 space-y-3">
+              {evaluation.evidence && (
+                <div className="rounded-md border-l-4 border-emerald-500 bg-emerald-500/10 p-3 text-sm italic text-foreground">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-700 not-italic mb-1">
+                    Extracted Verbatim Evidence
+                  </span>
+                  &ldquo;{evaluation.evidence}&rdquo;
+                </div>
+              )}
 
-            {evaluation.evidence && (
-              <blockquote className="mt-4 border-l-2 border-[var(--mint)] pl-3 font-[var(--font-display)] text-lg italic text-[var(--ink-soft)]">
-                &ldquo;{evaluation.evidence}&rdquo;
-              </blockquote>
-            )}
+              <p className="text-sm leading-relaxed text-muted-foreground">{evaluation.explanation}</p>
 
-            <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">{evaluation.explanation}</p>
-
-            {evaluation.suggested_clarification && (
-              <p className="mt-3 bg-[var(--paper)] px-3 py-2 text-sm">
-                <strong>Request:</strong> {evaluation.suggested_clarification}
-              </p>
-            )}
-          </article>
+              {evaluation.suggested_clarification && (
+                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-950 flex items-start gap-2.5">
+                  <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold block mb-0.5">Recommended Physician Clarification</span>
+                    <span>{evaluation.suggested_clarification}</span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         ))}
       </div>
     </div>
@@ -95,6 +168,7 @@ function ReportView({ report }: { report: ClinicalGapReport }) {
 }
 
 export function AuditWorkspace() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [clinicalNote, setClinicalNote] = useState(sampleClinicalNote);
   const [policyRubric, setPolicyRubric] = useState(samplePolicyRubric);
   const [rubricId, setRubricId] = useState("MRI_PA_001");
@@ -129,193 +203,339 @@ export function AuditWorkspace() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-5 sm:px-7 lg:px-10 lg:py-8">
-      <header className="mx-auto flex max-w-[1500px] items-center justify-between border-b border-[var(--ink)] pb-4">
-        <div className="flex items-baseline gap-3">
-          <span className="font-[var(--font-display)] text-3xl font-bold">MedVigil</span>
-          <span className="hidden text-xs font-bold uppercase tracking-[0.18em] text-[var(--ink-soft)] sm:inline">
-            Documentation Review Desk
-          </span>
-        </div>
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide">
-          <span className="h-2 w-2 bg-[#3e9a73]" aria-hidden="true" />
-          FastAPI connected
-        </div>
-      </header>
+    <div className="min-h-screen bg-background flex">
+      {/* Sidebar with STAGE 1 Button */}
+      <AppSidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        activeStage="stage-1"
+      />
 
-      <section className="mx-auto mt-7 grid max-w-[1500px] gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(520px,1.08fr)]">
-        <div className="border border-[var(--ink)] bg-[var(--paper)] shadow-[7px_7px_0_var(--ink)]">
-          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--ink)] bg-[var(--citrine)] p-5">
-            <div>
-              <p className="eyebrow">Case intake</p>
-              <h1 className="mt-1 max-w-xl font-[var(--font-display)] text-4xl leading-none sm:text-5xl">
-                Test the record against the rule.
-              </h1>
+      {/* Main content viewport */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="border-b bg-card/60 backdrop-blur-md sticky top-0 z-10 px-4 py-3 sm:px-8">
+          <div className="mx-auto flex max-w-[1500px] items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden h-9 w-9 mr-1"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Open sidebar"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground hidden sm:inline">
+                  Pipeline:
+                </span>
+                <Badge variant="secondary" className="gap-1.5 text-xs font-semibold py-1">
+                  <FileSearch className="h-3.5 w-3.5" />
+                  Stage 1: Medical Gap Analyzer
+                </Badge>
+              </div>
             </div>
-            <button className="button-secondary bg-white/50" onClick={clearWorkspace} type="button">
-              Clear
-            </button>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="gap-1.5 border-emerald-500/30 bg-emerald-500/10 text-emerald-700 text-xs py-1">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                FastAPI Connected
+              </Badge>
+            </div>
           </div>
+        </header>
 
-          <div className="space-y-5 p-5 sm:p-6">
-            <div>
-              <label className="field-label" htmlFor="clinical-note">Clinical note</label>
-              <textarea
-                className="field-control min-h-52 resize-y text-sm leading-6"
-                disabled={active}
-                id="clinical-note"
-                onChange={(event) => setClinicalNote(event.target.value)}
-                spellCheck={false}
-                value={clinicalNote}
-              />
-              <p className="mt-1 text-right text-xs text-[var(--ink-soft)]">{clinicalNote.length} characters</p>
-            </div>
+        <main className="mx-auto max-w-[1500px] w-full px-4 py-6 sm:px-8 flex-1">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(520px,1.08fr)]">
+            <Card className="border-border shadow-xs">
+              <CardHeader className="border-b bg-muted/30 pb-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Badge variant="secondary" className="text-[11px] font-semibold uppercase tracking-wider">
+                      Case Intake
+                    </Badge>
+                    <CardTitle className="text-2xl font-bold tracking-tight">
+                      Test the record against the rule.
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Compare physician encounter documentation against payer authorization criteria.
+                    </CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={clearWorkspace} type="button">
+                    <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                    Clear
+                  </Button>
+                </div>
+              </CardHeader>
 
-            <div>
-              <label className="field-label" htmlFor="policy-rubric">Policy rubric</label>
-              <textarea
-                className="field-control min-h-64 resize-y text-sm leading-6"
-                disabled={active}
-                id="policy-rubric"
-                onChange={(event) => setPolicyRubric(event.target.value)}
-                spellCheck={false}
-                value={policyRubric}
-              />
-              <p className="mt-1 text-right text-xs text-[var(--ink-soft)]">{policyRubric.length} characters</p>
-            </div>
-
-            <details className="border-y border-[var(--line)] py-3">
-              <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-[0.14em]">
-                Advanced settings
-              </summary>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="field-label" htmlFor="rubric-id">Rubric ID</label>
-                  <input
-                    className="field-control"
+              <CardContent className="space-y-5 p-5 sm:p-6">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="clinical-note" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5" /> Clinical note
+                    </Label>
+                    <span className="text-[11px] text-muted-foreground font-mono">{clinicalNote.length} chars</span>
+                  </div>
+                  <Textarea
+                    id="clinical-note"
+                    className="min-h-52 font-mono text-xs leading-relaxed resize-y"
                     disabled={active}
-                    id="rubric-id"
-                    onChange={(event) => setRubricId(event.target.value)}
-                    value={rubricId}
+                    onChange={(event) => setClinicalNote(event.target.value)}
+                    spellCheck={false}
+                    value={clinicalNote}
                   />
                 </div>
-                <div>
-                  <label className="field-label" htmlFor="temperature">Temperature: {temperature.toFixed(1)}</label>
-                  <input
-                    className="mt-3 w-full accent-[var(--coral)]"
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="policy-rubric" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <BookOpen className="h-3.5 w-3.5" /> Policy rubric
+                    </Label>
+                    <span className="text-[11px] text-muted-foreground font-mono">{policyRubric.length} chars</span>
+                  </div>
+                  <Textarea
+                    id="policy-rubric"
+                    className="min-h-60 font-mono text-xs leading-relaxed resize-y"
                     disabled={active}
-                    id="temperature"
-                    max="2"
-                    min="0"
-                    onChange={(event) => setTemperature(Number(event.target.value))}
-                    step="0.1"
-                    type="range"
-                    value={temperature}
+                    onChange={(event) => setPolicyRubric(event.target.value)}
+                    spellCheck={false}
+                    value={policyRubric}
                   />
                 </div>
-              </div>
-            </details>
 
-            {formError && (
-              <p className="border-l-4 border-[var(--coral)] bg-[#ffe1da] px-3 py-2 text-sm" role="alert">
-                {formError}
-              </p>
-            )}
-
-            <div className="flex flex-wrap gap-3">
-              <button className="button-primary flex-1" disabled={active} onClick={submitAudit} type="button">
-                Start clinical audit
-              </button>
-              <button className="button-secondary" disabled={!active} onClick={cancel} type="button">
-                Stop
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <section className="min-h-[680px] border border-[var(--ink)] bg-white/65">
-          <div className="grid grid-cols-2 border-b border-[var(--ink)] sm:grid-cols-4">
-            <Metric label="State" value={state.phase} />
-            <Metric label="First token" value={formatDuration(state.ttftMs)} />
-            <Metric label="Elapsed" value={formatDuration(elapsedMs)} />
-            <Metric label="Chunks" value={String(state.chunks)} />
-          </div>
-
-          <div className="flex items-center gap-3 border-b border-[var(--line)] bg-white/75 px-5 py-3" aria-live="polite">
-            <span className={`h-2.5 w-2.5 ${active ? "animate-pulse bg-[var(--coral)]" : state.phase === "complete" ? "bg-[#3e9a73]" : "bg-[var(--ink-soft)]"}`} aria-hidden="true" />
-            <p className="text-sm font-bold">{state.statusMessage}</p>
-            {state.retries > 0 && <span className="ml-auto text-xs">Retries: {state.retries}</span>}
-          </div>
-
-          <div className="p-5 sm:p-6">
-            {state.phase === "idle" && (
-              <div className="grid min-h-[520px] place-items-center text-center">
-                <div className="max-w-sm">
-                  <span className="mx-auto grid h-20 w-20 place-items-center border border-[var(--ink)] bg-[var(--mint)] font-[var(--font-display)] text-4xl shadow-[5px_5px_0_var(--ink)]" aria-hidden="true">
-                    Rx
-                  </span>
-                  <h2 className="mt-7 font-[var(--font-display)] text-3xl">Evidence before inference.</h2>
-                  <p className="mt-3 text-sm leading-6 text-[var(--ink-soft)]">
-                    Submit the note to receive a criterion-by-criterion documentation review. The final panel only renders validated output.
-                  </p>
+                <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Sliders className="h-3.5 w-3.5" /> Advanced Settings
+                    </span>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="rubric-id" className="text-xs font-medium">Rubric ID</Label>
+                      <Input
+                        id="rubric-id"
+                        className="h-8 text-xs font-mono"
+                        disabled={active}
+                        onChange={(event) => setRubricId(event.target.value)}
+                        value={rubricId}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="temperature" className="text-xs font-medium">Temperature</Label>
+                        <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0">
+                          {temperature.toFixed(1)}
+                        </Badge>
+                      </div>
+                      <input
+                        className="mt-2 w-full accent-primary h-2 bg-muted rounded-lg cursor-pointer"
+                        disabled={active}
+                        id="temperature"
+                        max="2"
+                        min="0"
+                        onChange={(event) => setTemperature(Number(event.target.value))}
+                        step="0.1"
+                        type="range"
+                        value={temperature}
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
 
-            {(state.phase === "connecting" || state.phase === "streaming") && (
-              <div className="space-y-5">
-                <div className="border-l-4 border-[var(--citrine)] bg-[var(--paper)] p-4">
-                  <p className="eyebrow">Live evaluation</p>
-                  <p className="mt-2 font-[var(--font-display)] text-2xl">{state.statusMessage}</p>
+                {formError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="ml-2 text-xs font-medium">{formError}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    size="lg"
+                    className="flex-1 font-semibold shadow-xs"
+                    disabled={active}
+                    onClick={submitAudit}
+                    type="button"
+                  >
+                    {active ? (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4 animate-spin" />
+                        Evaluating...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="mr-2 h-4 w-4" />
+                        Start clinical audit
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="destructive"
+                    disabled={!active}
+                    onClick={cancel}
+                    type="button"
+                  >
+                    <Square className="mr-2 h-4 w-4" />
+                    Stop
+                  </Button>
                 </div>
-                <details className="border border-[var(--line)] bg-[#15282a] text-[#dce8df]" open={state.phase === "streaming"}>
-                  <summary className="cursor-pointer px-4 py-3 text-xs font-bold uppercase tracking-wider">Raw structured stream</summary>
-                  <pre className="max-h-[460px] overflow-auto whitespace-pre-wrap border-t border-white/15 p-4 text-xs leading-5">
-                    {state.rawText || "Waiting for the first provider chunk..."}
-                  </pre>
-                </details>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border shadow-xs flex flex-col min-h-[680px]">
+              <div className="grid grid-cols-2 divide-x border-b bg-muted/20 sm:grid-cols-4">
+                <Metric label="State" value={state.phase} icon={<Activity className="h-3.5 w-3.5 text-muted-foreground" />} />
+                <Metric label="First token" value={formatDuration(state.ttftMs)} icon={<Clock className="h-3.5 w-3.5 text-muted-foreground" />} />
+                <Metric label="Elapsed" value={formatDuration(elapsedMs)} icon={<Clock className="h-3.5 w-3.5 text-muted-foreground" />} />
+                <Metric label="Chunks" value={String(state.chunks)} icon={<Layers className="h-3.5 w-3.5 text-muted-foreground" />} />
               </div>
-            )}
 
-            {state.phase === "complete" && state.report && <ReportView report={state.report} />}
-
-            {state.phase === "error" && (
-              <div className="border border-[#cc5945] bg-[#ffe1da] p-5" role="alert">
-                <p className="eyebrow">Evaluation failed</p>
-                <h2 className="mt-2 font-[var(--font-display)] text-3xl">No report was accepted.</h2>
-                <p className="mt-3 text-sm leading-6">{state.error}</p>
-                <button className="button-secondary mt-5 bg-white/50" onClick={reset} type="button">Reset panel</button>
+              <div className="flex items-center gap-3 border-b bg-muted/10 px-5 py-3" aria-live="polite">
+                <span
+                  className={`h-2.5 w-2.5 rounded-full ${
+                    active
+                      ? "animate-ping bg-amber-500"
+                      : state.phase === "complete"
+                      ? "bg-emerald-500"
+                      : state.phase === "error"
+                      ? "bg-destructive"
+                      : "bg-muted-foreground/40"
+                  }`}
+                  aria-hidden="true"
+                />
+                <p className="text-xs font-semibold text-foreground">{state.statusMessage}</p>
+                {state.retries > 0 && (
+                  <Badge variant="outline" className="ml-auto text-[10px] font-mono">
+                    Retries: {state.retries}
+                  </Badge>
+                )}
               </div>
-            )}
 
-            {state.phase === "cancelled" && (
-              <div className="border border-[var(--line)] bg-[var(--paper)] p-5">
-                <p className="eyebrow">Request stopped</p>
-                <h2 className="mt-2 font-[var(--font-display)] text-3xl">The audit was cancelled.</h2>
-                <p className="mt-3 text-sm text-[var(--ink-soft)]">Partial stream text was not treated as a clinical report.</p>
-              </div>
-            )}
+              {active && (
+                <div className="px-5 pt-3">
+                  <Progress value={state.chunks > 0 ? Math.min(state.chunks * 3, 95) : 10} className="h-1.5" />
+                </div>
+              )}
 
-            {state.rawText && !active && (
-              <details className="mt-6 border border-[var(--line)]">
-                <summary className="cursor-pointer px-4 py-3 text-xs font-bold uppercase tracking-wider">Stream diagnostics</summary>
-                <pre className="max-h-64 overflow-auto whitespace-pre-wrap border-t border-[var(--line)] bg-[#15282a] p-4 text-xs text-[#dce8df]">
-                  {state.rawText}
-                </pre>
-              </details>
-            )}
+              <CardContent className="p-5 sm:p-6 flex-1 flex flex-col">
+                {state.phase === "idle" && (
+                  <div className="m-auto text-center py-12">
+                    <div className="max-w-md space-y-3">
+                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-muted border border-border/80 shadow-xs">
+                        <ShieldCheck className="h-7 w-7 text-primary" />
+                      </div>
+                      <h2 className="text-2xl font-bold tracking-tight text-foreground">
+                        Evidence before inference.
+                      </h2>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        Submit the clinical encounter note to stream real-time evaluations against payer guidelines.
+                        Only reports that pass complete schema validation are rendered.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {(state.phase === "connecting" || state.phase === "streaming") && (
+                  <div className="space-y-4 flex-1 flex flex-col">
+                    <Alert className="border-primary/20 bg-primary/5">
+                      <Sparkles className="h-4 w-4 text-primary animate-spin" />
+                      <div className="ml-2">
+                        <AlertTitle className="text-xs font-semibold uppercase tracking-wider">
+                          Live Evaluation in Progress
+                        </AlertTitle>
+                        <AlertDescription className="text-sm font-medium">
+                          {state.statusMessage}
+                        </AlertDescription>
+                      </div>
+                    </Alert>
+
+                    <div className="rounded-lg border bg-zinc-950 text-zinc-100 overflow-hidden shadow-sm flex-1 flex flex-col">
+                      <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/80 px-4 py-2.5 text-xs">
+                        <span className="flex items-center gap-2 font-mono font-medium text-zinc-400">
+                          <Terminal className="h-3.5 w-3.5 text-emerald-400" />
+                          Raw Token Stream
+                        </span>
+                        <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 text-[10px] font-mono">
+                          Streaming Active
+                        </Badge>
+                      </div>
+                      <pre className="flex-1 max-h-[460px] overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-relaxed text-zinc-300">
+                        {state.rawText || "Connecting to LLM audit stream..."}
+                        <span className="inline-block h-3.5 w-1.5 ml-1 bg-emerald-400 animate-pulse align-middle" />
+                      </pre>
+                    </div>
+                  </div>
+                )}
+
+                {state.phase === "complete" && state.report && <ReportView report={state.report} />}
+
+                {state.phase === "error" && (
+                  <Alert variant="destructive" className="p-6">
+                    <XCircle className="h-5 w-5" />
+                    <div className="ml-2">
+                      <AlertTitle className="text-lg font-bold">No report was accepted.</AlertTitle>
+                      <AlertDescription className="mt-2 text-sm leading-relaxed text-destructive-foreground/90">
+                        {state.error}
+                      </AlertDescription>
+                      <Button
+                        variant="outline"
+                        className="mt-5 border-destructive/40 hover:bg-destructive/10"
+                        onClick={reset}
+                        type="button"
+                      >
+                        Reset panel
+                      </Button>
+                    </div>
+                  </Alert>
+                )}
+
+                {state.phase === "cancelled" && (
+                  <Alert className="p-5">
+                    <AlertCircle className="h-5 w-5 text-muted-foreground" />
+                    <div className="ml-2">
+                      <AlertTitle className="text-base font-bold">The audit was cancelled.</AlertTitle>
+                      <AlertDescription className="mt-1 text-sm text-muted-foreground">
+                        Partial stream text was discarded and not treated as a clinical report.
+                      </AlertDescription>
+                    </div>
+                  </Alert>
+                )}
+
+                {state.rawText && !active && (
+                  <details className="mt-6 rounded-lg border bg-muted/20 text-xs">
+                    <summary className="cursor-pointer px-4 py-2.5 font-semibold text-muted-foreground hover:text-foreground">
+                      Stream Diagnostics & Raw Payloads
+                    </summary>
+                    <pre className="max-h-64 overflow-auto whitespace-pre-wrap border-t border-border bg-zinc-950 p-4 font-mono text-zinc-300">
+                      {state.rawText}
+                    </pre>
+                  </details>
+                )}
+              </CardContent>
+            </Card>
           </div>
-        </section>
-      </section>
-    </main>
+        </main>
+      </div>
+    </div>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon?: React.ReactNode;
+}) {
   return (
-    <div className="border-r border-[var(--ink)] px-4 py-3 last:border-r-0">
-      <p className="eyebrow">{label}</p>
-      <p className="mt-1 truncate font-[var(--font-display)] text-xl capitalize">{value}</p>
+    <div className="px-4 py-3">
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <p className="mt-1 truncate text-lg font-bold font-mono capitalize text-foreground">{value}</p>
     </div>
   );
 }
