@@ -14,7 +14,12 @@
     "test:web": "pnpm --filter @medv/web test",
     "test:e2e": "pnpm --filter @medv/web test:e2e",
     "contracts:generate": "pnpm --filter @medv/api openapi && pnpm --filter @medv/api-client generate",
-    "contracts:check": "pnpm contracts:generate && git diff --exit-code -- packages/api-client/openapi packages/api-client/src/generated"
+    "contracts:check": "pnpm contracts:generate && git diff --exit-code -- packages/api-client/openapi packages/api-client/src/generated",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @medv/api db:migrate",
+    "db:rollback": "pnpm --filter @medv/api db:rollback",
+    "db:status": "pnpm --filter @medv/api db:status"
   },
   "devDependencies": {
     "turbo": "2.11.10"

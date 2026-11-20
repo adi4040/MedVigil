@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
 
+    # PostgreSQL Database Configuration
+    POSTGRES_SERVER: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_USER: str = "medv_user"
+    POSTGRES_PASSWORD: str = "medv_password"
+    POSTGRES_DB: str = "medv_db"
+    DATABASE_URL: Optional[str] = None
+
     model_config = SettingsConfigDict(
         env_file=(REPOSITORY_ROOT / ".env", API_DIR / ".env"),
         env_file_encoding="utf-8",
@@ -40,6 +48,28 @@ class Settings(BaseSettings):
 
     def get_cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
+    def get_async_database_url(self) -> str:
+        """Returns PostgreSQL URL formatted for asyncpg async engine."""
+        if self.DATABASE_URL:
+            if self.DATABASE_URL.startswith("postgresql://"):
+                return self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+            return self.DATABASE_URL
+        return (
+            f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
+
+    def get_sync_database_url(self) -> str:
+        """Returns PostgreSQL URL formatted for psycopg / alembic sync operations."""
+        if self.DATABASE_URL:
+            if self.DATABASE_URL.startswith("postgresql+asyncpg://"):
+                return self.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
+            return self.DATABASE_URL
+        return (
+            f"postgresql+psycopg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
 
 
 settings = Settings()

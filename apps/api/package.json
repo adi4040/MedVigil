@@ -2,8 +2,11 @@
   "name": "@medv/api",
   "private": true,
   "scripts": {
-    "dev": "python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
-    "test": "python -m pytest -p no:cacheprovider -q",
-    "openapi": "python scripts/export_openapi.py"
+    "dev": "node scripts/run_py.js -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+    "test": "node scripts/run_py.js -m pytest -p no:cacheprovider -q",
+    "openapi": "node scripts/run_py.js scripts/export_openapi.py",
+    "db:migrate": "node scripts/run_py.js -m alembic upgrade head",
+    "db:rollback": "node scripts/run_py.js -m alembic downgrade -1",
+    "db:status": "node scripts/run_py.js -m alembic current"
   }
 }
