@@ -19,7 +19,8 @@
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @medv/api db:migrate",
     "db:rollback": "pnpm --filter @medv/api db:rollback",
-    "db:status": "pnpm --filter @medv/api db:status"
+    "db:status": "pnpm --filter @medv/api db:status",
+    "seed:synthea": "pnpm --filter @medv/api seed:synthea"
   },
   "devDependencies": {
     "turbo": "2.11.10"

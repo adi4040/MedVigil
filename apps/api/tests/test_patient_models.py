@@ -43,6 +43,7 @@ def test_patient_model_instantiation():
     """Verifies Patient model attributes, types, and string representation."""
     patient = Patient(
         patient_id="PT-9901",
+        name="John Doe",
         age_years=68,
         biological_sex="female",
         actual_weight_kg=Decimal("64.50"),
@@ -50,6 +51,7 @@ def test_patient_model_instantiation():
     )
 
     assert patient.patient_id == "PT-9901"
+    assert patient.name == "John Doe"
     assert patient.age_years == 68
     assert patient.biological_sex == "female"
     assert patient.actual_weight_kg == Decimal("64.50")
@@ -132,12 +134,33 @@ async def test_patient_and_labs_db_lifecycle(test_db_session: AsyncSession):
 
 def test_database_url_configuration():
     """Validates PostgreSQL async and sync connection string helpers."""
-    async_url = settings.get_async_database_url()
-    assert "postgresql+asyncpg://" in async_url
-    assert settings.POSTGRES_USER in async_url
-    assert settings.POSTGRES_DB in async_url
+    # When DATABASE_URL is explicitly configured
+    custom_settings = settings.model_copy(
+        update={
+            "DATABASE_URL": "postgresql://custom_user:secret@custom_host:5432/custom_db"
+        }
+    )
+    assert custom_settings.get_async_database_url() == (
+        "postgresql+asyncpg://custom_user:secret@custom_host:5432/custom_db"
+    )
+    assert custom_settings.get_sync_database_url() == (
+        "postgresql://custom_user:secret@custom_host:5432/custom_db"
+    )
 
-    sync_url = settings.get_sync_database_url()
-    assert "postgresql+psycopg://" in sync_url
-    assert settings.POSTGRES_USER in sync_url
-    assert settings.POSTGRES_DB in sync_url
+    # When fallback components are used
+    fallback_settings = settings.model_copy(
+        update={
+            "DATABASE_URL": None,
+            "POSTGRES_USER": "fallback_user",
+            "POSTGRES_PASSWORD": "fallback_pass",
+            "POSTGRES_SERVER": "localhost",
+            "POSTGRES_PORT": 5432,
+            "POSTGRES_DB": "fallback_db",
+        }
+    )
+    assert fallback_settings.get_async_database_url() == (
+        "postgresql+asyncpg://fallback_user:fallback_pass@localhost:5432/fallback_db"
+    )
+    assert fallback_settings.get_sync_database_url() == (
+        "postgresql+psycopg://fallback_user:fallback_pass@localhost:5432/fallback_db"
+    )

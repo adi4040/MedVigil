@@ -7,6 +7,7 @@
     "openapi": "node scripts/run_py.js scripts/export_openapi.py",
     "db:migrate": "node scripts/run_py.js -m alembic upgrade head",
     "db:rollback": "node scripts/run_py.js -m alembic downgrade -1",
-    "db:status": "node scripts/run_py.js -m alembic current"
+    "db:status": "node scripts/run_py.js -m alembic current",
+    "seed:synthea": "node scripts/run_py.js scripts/seed_synthea.py"
   }
 }

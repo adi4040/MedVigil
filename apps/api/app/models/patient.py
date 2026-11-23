@@ -31,6 +31,11 @@ class Patient(Base):
         index=True,
         doc="Unique patient identifier (MRN or subject ID).",
     )
+    name: Mapped[Optional[str]] = mapped_column(
+        String(128),
+        nullable=True,
+        doc="Patient full name.",
+    )
     age_years: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -46,9 +51,9 @@ class Patient(Base):
         nullable=False,
         doc="Total measured body weight in kilograms.",
     )
-    height_cm: Mapped[Decimal] = mapped_column(
+    height_cm: Mapped[Optional[Decimal]] = mapped_column(
         Numeric(5, 2),
-        nullable=False,
+        nullable=True,
         doc="Patient standing height in centimeters.",
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -102,9 +107,9 @@ class PatientLab(Base):
         index=True,
         doc="Reference to the associated patient record.",
     )
-    serum_creatinine_mg_dl: Mapped[Decimal] = mapped_column(
+    serum_creatinine_mg_dl: Mapped[Optional[Decimal]] = mapped_column(
         Numeric(4, 2),
-        nullable=False,
+        nullable=True,
         doc="Serum creatinine concentration in mg/dL (SCr).",
     )
     egfr_ml_min_1_73m2: Mapped[Optional[Decimal]] = mapped_column(
