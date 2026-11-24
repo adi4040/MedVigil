@@ -95,7 +95,7 @@ async def run_ingestion():
 
     with open(patients_file, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        for row in reader:
+        for idx, row in enumerate(reader):
             pid = row["Id"]
             synthea_pids.add(pid)
             bdate = datetime.strptime(row["BIRTHDATE"], "%Y-%m-%d")
@@ -110,6 +110,7 @@ async def run_ingestion():
 
             patient_records.append({
                 "patient_id": pid,
+                "generic_patient_id": f"PAT-{idx + 1:03d}",
                 "name": name,
                 "age_years": age_years,
                 "biological_sex": sex,
@@ -130,6 +131,7 @@ async def run_ingestion():
                 .on_conflict_do_update(
                     index_elements=["patient_id"],
                     set_={
+                        "generic_patient_id": p["generic_patient_id"],
                         "name": p["name"],
                         "age_years": p["age_years"],
                         "biological_sex": p["biological_sex"],
