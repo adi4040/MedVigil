@@ -328,3 +328,109 @@ async def calculate_crcl(
         return await _execute(session)
     async with async_session_factory() as s:
         return await _execute(s)
+
+
+TOOL_REGISTRY = {
+    "get_renal_metric": get_renal_metric,
+    "fetch_patient_crcl": fetch_patient_crcl,
+    "calculate_crcl": calculate_crcl,
+}
+
+
+def get_gemini_renal_tools() -> List[Any]:
+    """Build Gemini FunctionDeclaration tool definitions (excluding internal DB session)."""
+    from google.genai import types
+
+    declarations = [
+        types.FunctionDeclaration(
+            name="get_renal_metric",
+            description=(
+                "Look up a prescribed medication's required renal metric ('crcl' or 'egfr') "
+                "and renal dosing guideline brackets from the clinical database."
+            ),
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "medication_name": types.Schema(
+                        type=types.Type.STRING,
+                        description="Generic or brand name of the prescribed medication.",
+                    ),
+                },
+                required=["medication_name"],
+            ),
+        ),
+        types.FunctionDeclaration(
+            name="fetch_patient_crcl",
+            description=(
+                "Retrieve a patient's recorded creatinine clearance (CrCl), newest non-null "
+                "serum creatinine (mg/dL), and newest non-null eGFR (mL/min/1.73m2) from labs."
+            ),
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "patient_id": types.Schema(
+                        type=types.Type.STRING,
+                        description="Unique patient identifier from the discharge record.",
+                    ),
+                },
+                required=["patient_id"],
+            ),
+        ),
+        types.FunctionDeclaration(
+            name="calculate_crcl",
+            description=(
+                "Calculate Cockcroft-Gault Creatinine Clearance (CrCl in mL/min) using the "
+                "patient's age, sex, weight, and latest database serum creatinine."
+            ),
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "patient_id": types.Schema(
+                        type=types.Type.STRING,
+                        description="Unique patient identifier from the discharge record.",
+                    ),
+                    "serum_creatinine_mg_dl": types.Schema(
+                        type=types.Type.NUMBER,
+                        description=(
+                            "Optional serum creatinine in mg/dL. Leave omitted to use the "
+                            "verified database lab record."
+                        ),
+                    ),
+                },
+                required=["patient_id"],
+            ),
+        ),
+    ]
+    return [types.Tool(function_declarations=declarations)]
+
+
+async def execute_tool_call(
+    name: str,
+    args: Optional[Dict[str, Any]] = None,
+    session: Optional[AsyncSession] = None,
+) -> Dict[str, Any]:
+    """Dispatch a Gemini tool call to the matching async DB tool with injected session."""
+    tool_fn = TOOL_REGISTRY.get(name)
+    if tool_fn is None:
+        return {
+            "status": "error",
+            "message": f"Unknown tool '{name}'.",
+        }
+
+    safe_args = dict(args or {})
+    safe_args.pop("session", None)
+
+    try:
+        return await tool_fn(**safe_args, session=session)
+    except TypeError as exc:
+        logger.warning("Invalid arguments for tool '%s': %s", name, exc)
+        return {
+            "status": "error",
+            "message": f"Invalid arguments for tool '{name}': {exc}",
+        }
+    except Exception as exc:
+        logger.error("Tool '%s' execution failed: %s", name, exc, exc_info=True)
+        return {
+            "status": "error",
+            "message": f"Tool '{name}' failed: {exc}",
+        }

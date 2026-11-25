@@ -31,6 +31,7 @@ import {
   Clock,
   FileSearch,
   FileText,
+  FlaskConical,
   Layers,
   Menu,
   Play,
@@ -44,6 +45,7 @@ import {
 } from "lucide-react";
 
 import { AppSidebar } from "./app-sidebar";
+import { RenalStageWorkspace } from "./renal-stage-workspace";
 import { sampleClinicalNote, samplePolicyRubric } from "../fixtures";
 import { useAuditStream } from "../use-audit-stream";
 
@@ -169,6 +171,8 @@ function ReportView({ report }: { report: ClinicalGapReport }) {
 
 export function AuditWorkspace() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activeStage, setActiveStage] = useState<"stage-1" | "stage-2">("stage-1");
   const [clinicalNote, setClinicalNote] = useState(sampleClinicalNote);
   const [policyRubric, setPolicyRubric] = useState(samplePolicyRubric);
   const [rubricId, setRubricId] = useState("MRI_PA_001");
@@ -204,11 +208,16 @@ export function AuditWorkspace() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar with STAGE 1 Button */}
+      {/* Sidebar with STAGE 1 & STAGE 2 */}
       <AppSidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        activeStage="stage-1"
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
+        activeStage={activeStage}
+        onSelectStage={(stage) =>
+          setActiveStage(stage === "stage-2" ? "stage-2" : "stage-1")
+        }
       />
 
       {/* Main content viewport */}
@@ -230,8 +239,17 @@ export function AuditWorkspace() {
                   Pipeline:
                 </span>
                 <Badge variant="secondary" className="gap-1.5 text-xs font-semibold py-1">
-                  <FileSearch className="h-3.5 w-3.5" />
-                  Stage 1: Medical Gap Analyzer
+                  {activeStage === "stage-2" ? (
+                    <>
+                      <FlaskConical className="h-3.5 w-3.5" />
+                      Stage 2: Renal Safety Auditor
+                    </>
+                  ) : (
+                    <>
+                      <FileSearch className="h-3.5 w-3.5" />
+                      Stage 1: Medical Gap Analyzer
+                    </>
+                  )}
                 </Badge>
               </div>
             </div>
@@ -245,6 +263,9 @@ export function AuditWorkspace() {
         </header>
 
         <main className="mx-auto max-w-[1500px] w-full px-4 py-6 sm:px-8 flex-1">
+          {activeStage === "stage-2" ? (
+            <RenalStageWorkspace />
+          ) : (
           <div className="grid gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(520px,1.08fr)]">
             <Card className="border-border shadow-xs">
               <CardHeader className="border-b bg-muted/30 pb-4">
@@ -514,6 +535,7 @@ export function AuditWorkspace() {
               </CardContent>
             </Card>
           </div>
+          )}
         </main>
       </div>
     </div>

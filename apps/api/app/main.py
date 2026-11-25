@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.audit import router as audit_router
 from app.api.v1.health import router as health_router
+from app.api.v1.renal import router as renal_router
 from app.core.config import settings
 
 @asynccontextmanager
@@ -33,6 +34,7 @@ app.add_middleware(
 # Register routes
 app.include_router(health_router, prefix=settings.API_V1_PREFIX, tags=["Health"])
 app.include_router(audit_router, prefix=settings.API_V1_PREFIX)
+app.include_router(renal_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")
