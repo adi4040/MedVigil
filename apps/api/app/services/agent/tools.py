@@ -389,13 +389,6 @@ def get_gemini_renal_tools() -> List[Any]:
                         type=types.Type.STRING,
                         description="Unique patient identifier from the discharge record.",
                     ),
-                    "serum_creatinine_mg_dl": types.Schema(
-                        type=types.Type.NUMBER,
-                        description=(
-                            "Optional serum creatinine in mg/dL. Leave omitted to use the "
-                            "verified database lab record."
-                        ),
-                    ),
                 },
                 required=["patient_id"],
             ),
@@ -408,6 +401,7 @@ async def execute_tool_call(
     name: str,
     args: Optional[Dict[str, Any]] = None,
     session: Optional[AsyncSession] = None,
+    forced_patient_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Dispatch a Gemini tool call to the matching async DB tool with injected session."""
     tool_fn = TOOL_REGISTRY.get(name)
@@ -419,6 +413,10 @@ async def execute_tool_call(
 
     safe_args = dict(args or {})
     safe_args.pop("session", None)
+    if name == "calculate_crcl":
+        safe_args.pop("serum_creatinine_mg_dl", None)
+    if forced_patient_id and name in ("fetch_patient_crcl", "calculate_crcl"):
+        safe_args["patient_id"] = forced_patient_id
 
     try:
         return await tool_fn(**safe_args, session=session)

@@ -1,5 +1,6 @@
+import json
 import logging
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,6 +52,20 @@ class RenalAgentRunner:
         tools = get_gemini_renal_tools()
         tool_trace: List[str] = []
 
+        verified_patient_id: Optional[str] = None
+        try:
+            payload = json.loads(discharge_json)
+            if isinstance(payload, dict):
+                raw_pid = payload.get("patient_id")
+                if isinstance(raw_pid, str) and raw_pid.strip():
+                    verified_patient_id = raw_pid.strip()
+        except json.JSONDecodeError:
+            pass
+
+        metric_result: Optional[Dict[str, Any]] = None
+        lab_result: Optional[Dict[str, Any]] = None
+        crcl_result: Optional[Dict[str, Any]] = None
+
         contents: List[Any] = [
             types.Content(
                 role="user",
@@ -79,6 +94,11 @@ class RenalAgentRunner:
                 for fc in function_calls:
                     fc_name = fc.name
                     fc_args = dict(fc.args or {})
+                    if verified_patient_id and fc_name in ("fetch_patient_crcl", "calculate_crcl"):
+                        fc_args["patient_id"] = verified_patient_id
+                    if fc_name == "calculate_crcl":
+                        fc_args.pop("serum_creatinine_mg_dl", None)
+
                     tool_trace.append(f"{fc_name}({fc_args})")
                     logger.info(
                         "[RenalAgentRunner] Iter %d executing %s(%s)",
@@ -91,7 +111,15 @@ class RenalAgentRunner:
                         name=fc_name,
                         args=fc_args,
                         session=session,
+                        forced_patient_id=verified_patient_id,
                     )
+                    if fc_name == "get_renal_metric":
+                        metric_result = result
+                    elif fc_name == "fetch_patient_crcl":
+                        lab_result = result
+                    elif fc_name == "calculate_crcl":
+                        crcl_result = result
+
                     response_parts.append(
                         types.Part.from_function_response(
                             name=fc_name,
@@ -108,7 +136,7 @@ class RenalAgentRunner:
                 try:
                     report = RenalAuditReport.model_validate_json(raw_text)
                     report.tool_trace = tool_trace
-                    return report
+                    return _enforce_tool_evidence(report, metric_result, lab_result, crcl_result)
                 except ValidationError:
                     pass
 
@@ -141,7 +169,7 @@ class RenalAgentRunner:
             structured_text = (getattr(structured_resp, "text", None) or "").strip()
             report = RenalAuditReport.model_validate_json(structured_text)
             report.tool_trace = tool_trace
-            return report
+            return _enforce_tool_evidence(report, metric_result, lab_result, crcl_result)
 
         logger.warning(
             "[RenalAgentRunner] Reached max_iterations (%d) without final verdict.",
@@ -157,3 +185,53 @@ class RenalAgentRunner:
             ),
             tool_trace=tool_trace,
         )
+
+
+def _has_verified_tool_evidence(
+    metric_result: Optional[Dict[str, Any]],
+    lab_result: Optional[Dict[str, Any]],
+    crcl_result: Optional[Dict[str, Any]],
+) -> bool:
+    """Verify that required DB tools executed and produced valid renal evidence."""
+    if not metric_result or metric_result.get("status") != "success":
+        return False
+
+    required_metric = metric_result.get("required_renal_metric")
+    if required_metric not in ("crcl", "egfr"):
+        return False
+
+    if not lab_result or lab_result.get("status") == "error":
+        return False
+
+    if required_metric == "egfr":
+        return lab_result.get("latest_egfr_ml_min_1_73m2") is not None
+
+    # required_metric == "crcl"
+    if lab_result.get("crcl_found") is True:
+        return True
+
+    return bool(crcl_result and crcl_result.get("status") == "success")
+
+
+def _enforce_tool_evidence(
+    report: RenalAuditReport,
+    metric_result: Optional[Dict[str, Any]],
+    lab_result: Optional[Dict[str, Any]],
+    crcl_result: Optional[Dict[str, Any]],
+) -> RenalAuditReport:
+    """Force verdict to 'insufficient_data' if required DB tools were skipped or lacked evidence."""
+    if report.verdict == "insufficient_data":
+        return report
+
+    if not _has_verified_tool_evidence(metric_result, lab_result, crcl_result):
+        logger.warning(
+            "[RenalAgentRunner] Overriding verdict '%s' to 'insufficient_data' due to missing tool evidence.",
+            report.verdict,
+        )
+        report.verdict = "insufficient_data"
+        report.rationale = (
+            f"{report.rationale} [System Guardrail: Required database tool verification "
+            f"was incomplete or skipped; verdict forced to 'insufficient_data'.]"
+        )
+
+    return report

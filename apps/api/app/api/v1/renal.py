@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -28,19 +29,27 @@ async def evaluate_renal_dosing(
     """Execute the Stage 2 renal dosing verification agent loop."""
     try:
         runner = RenalAgentRunner()
+    except ValueError as exc:
+        logger.error("Stage 2 LLM configuration error: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Renal safety service is not configured.",
+        )
+
+    try:
         return await runner.run(
             discharge_json=request.discharge_json,
             session=db,
         )
-    except ValueError as exc:
-        logger.warning("Configuration or validation error in Stage 2 evaluation: %s", exc)
+    except ValidationError as exc:
+        logger.error("Stage 2 model returned invalid report schema: %s", exc)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Upstream model returned an invalid renal audit report.",
         )
     except Exception as exc:
         logger.error("Stage 2 renal evaluation failed: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Renal safety evaluation failed: {exc}",
+            detail="Renal safety evaluation failed due to an internal error.",
         )

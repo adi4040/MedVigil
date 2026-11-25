@@ -1,5 +1,6 @@
+import json
 from typing import List, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 RenalSafetyVerdict = Literal["safe", "dose_adjustment_required", "insufficient_data"]
@@ -13,6 +14,17 @@ class RenalAuditRequest(BaseModel):
         min_length=2,
         description="JSON string containing patient_id, prescribed medication, and daily dose.",
     )
+
+    @field_validator("discharge_json")
+    @classmethod
+    def validate_discharge_json_object(cls, value: str) -> str:
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ValueError("discharge_json must be valid JSON.") from exc
+        if not isinstance(parsed, dict):
+            raise ValueError("discharge_json must be a JSON object.")
+        return value
 
 
 class RenalAuditReport(BaseModel):
@@ -57,3 +69,13 @@ class RenalAuditReport(BaseModel):
         default_factory=list,
         description="Ordered list of agent tool calls executed during verification.",
     )
+
+    @model_validator(mode="after")
+    def forbid_safe_without_renal_evidence(self) -> "RenalAuditReport":
+        if self.verdict == "safe" and (
+            self.renal_metric_value is None or self.required_renal_metric is None
+        ):
+            raise ValueError(
+                "verdict 'safe' is forbidden when required_renal_metric or renal_metric_value is null."
+            )
+        return self

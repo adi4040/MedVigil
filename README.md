@@ -2,411 +2,243 @@
 
 <div align="center">
 
-**AI-Powered Clinical Documentation Audit & Prior-Authorization Review Engine**
+**A two-stage clinical review workspace for documentation gaps and renal dosing safety.**
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Next.js](https://img.shields.io/badge/Next.js-16.4-black.svg?style=flat&logo=next.js&logoColor=white)](https://nextjs.org)
-[![React](https://img.shields.io/badge/React-19.3-61DAFB.svg?style=flat&logo=react&logoColor=black)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6.svg?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4.3-38B2AC.svg?style=flat&logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
-[![Turborepo](https://img.shields.io/badge/Turborepo-2.11-EF4444.svg?style=flat&logo=turborepo&logoColor=white)](https://turbo.build)
-[![pnpm](https://img.shields.io/badge/pnpm-11.6-F69220.svg?style=flat&logo=pnpm&logoColor=white)](https://pnpm.io)
-[![Python](https://img.shields.io/badge/Python-3.13+-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
-[![Tests](https://img.shields.io/badge/Tests-Pytest%20%7C%20Vitest%20%7C%20Playwright-brightgreen.svg?style=flat)](https://github.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
+[![Gemini](https://img.shields.io/badge/Gemini-Tool_Calling-8E75B2?logo=googlegemini&logoColor=white)](https://ai.google.dev)
+[![pnpm](https://img.shields.io/badge/pnpm-11-F69220?logo=pnpm&logoColor=white)](https://pnpm.io)
 
 </div>
 
----
+> [!IMPORTANT]
+> MedVigil V1 is a demonstration system for synthetic or de-identified data. It is not a substitute for clinician or pharmacist review.
 
-## Table of Contents
+## What It Does
 
-- [Overview](#overview)
-- [System Architecture](#system-architecture)
-- [Key Features](#key-features)
-- [Repository Structure](#repository-structure)
-- [Quick Start](#quick-start)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Environment Configuration](#environment-configuration)
-- [Development Workflow](#development-workflow)
-- [API & Streaming Protocol](#api--streaming-protocol)
-- [Contract-First Generation](#contract-first-generation)
-- [Semantic Evaluation & Benchmarking](#semantic-evaluation--benchmarking)
-- [Testing & Quality Assurance](#testing--quality-assurance)
-- [Clinical Safety & Enterprise Design](#clinical-safety--enterprise-design)
-- [Documentation Index](#documentation-index)
-- [License](#license)
+| Stage | Purpose | Result |
+| --- | --- | --- |
+| **Stage 1: Medical Gap Analyzer** | Compares a clinical note with a policy rubric. | Criterion-level `met`, `unclear`, or `missing` findings with supporting evidence. |
+| **Stage 2: Renal Safety Auditor** | Checks a prescribed daily dose against patient renal data and stored dosing guidelines. | `safe`, `dose_adjustment_required`, or `insufficient_data` with rationale and tool trace. |
 
----
+## Architecture
 
-## Overview
+```mermaid
+flowchart LR
+    U[User] --> W[Next.js Review Workspace]
+    W -->|Stage 1: POST SSE| A[FastAPI]
+    W -->|Stage 2: POST JSON| A
 
-In healthcare utilization management and prior authorization (PA), documentation omissions and ambiguities lead to high claim denial rates, physician administrative burden, and delayed patient care.
+    A --> S1[Documentation Audit Engine]
+    S1 --> LLM[Gemini / OpenAI / Mock]
+    S1 -->|status, token, done, error| W
 
-**MedVigil** is an enterprise-grade clinical documentation review platform. It audits unstructured physician encounter notes against payer policy rubrics (such as medical-necessity criteria for advanced lumbar MRI), identifying clinical gaps and producing structured, citation-backed evaluation reports.
+    A --> S2[Renal Agent Runner]
+    S2 --> G[Gemini Tool Calling]
+    G --> T[Clinical Database Tools]
+    T --> DB[(PostgreSQL)]
+    S2 --> R[Validated Renal Audit Report]
+    R --> W
+```
 
-### The Problem It Solves
+The frontend uses same-origin `/api/*` requests. Next.js rewrites them to FastAPI, keeping provider and database credentials on the server.
 
-- **Subjective / Manual Audits**: Manual review of complex insurance criteria is slow and prone to inconsistency.
-- **Hallucinated Approvals**: Standard generative AI often infers clinical evidence that does not exist in the record. MedVigil enforces strict **"Evidence Before Inference"** constraints.
-- **Latency & Workflow Friction**: Physicians and audit reviewers need immediate feedback. MedVigil delivers real-time token streaming via Server-Sent Events (SSE) while tracking Time-to-First-Token (TTFT) and throughput.
+## Stage 2 Flow
 
----
-
-## System Architecture
-
-MedVigil operates as a symmetric monorepo. FastAPI owns the domain logic, Pydantic contracts, LLM integrations, and security enforcement. Next.js provides the clinician review workspace and consumes streaming SSE events through an end-to-end typed client.
+Stage 2 accepts a discharge medication payload, retrieves database-backed renal data, and returns a schema-validated report. The diagram shows the expected tool path; Gemini selects calls inside a bounded loop while the backend records the available tool evidence.
 
 ```mermaid
 flowchart TD
-    subgraph Client ["Client Browser"]
-        UI["Next.js 16 Review Desk (apps/web)"]
-        SSEClient["@medv/api-client (POST SSE Reader)"]
-        UI --> SSEClient
-    end
-
-    subgraph Ingress ["Development / Production Gateway"]
-        Proxy["Next.js Proxy Rewrite (/api/*) / Ingress"]
-        SSEClient -->|POST /api/v1/audit/evaluate/stream| Proxy
-    end
-
-    subgraph Backend ["FastAPI Microservice (apps/api)"]
-        Router["Audit API Router (FastAPI)"]
-        Val["Pydantic V2 Request & Chunk Validation"]
-        Engine["Audit LLM Client Engine"]
-        RetryLoop["Self-Healing Validation & Retry Loop"]
-        
-        Proxy --> Router
-        Router --> Val
-        Val --> Engine
-        Engine <--> RetryLoop
-    end
-
-    subgraph LLMProviders ["Supported Model Providers"]
-        Gemini["Google Gemini (2.5-flash / 2.5-pro)"]
-        OpenAI["OpenAI (gpt-4o / gpt-4o-mini)"]
-        Mock["Deterministic Offline Mock Client"]
-
-        Engine --> Gemini
-        Engine --> OpenAI
-        Engine --> Mock
-    end
-
-    Engine -.->|SSE Events: status, token, done, error| SSEClient
+    A[Discharge JSON] --> B[Pydantic Request Validation]
+    B --> C[Gemini Agent Loop]
+    C --> D[get_renal_metric]
+    D --> E[fetch_patient_crcl]
+    E -->|CrCl required and SCr exists| F[calculate_crcl]
+    E -->|eGFR required| G[Use latest eGFR]
+    F --> H[Tool Evidence Guard]
+    G --> H
+    H --> I[Pydantic RenalAuditReport]
+    I --> J[Renal Safety Auditor UI]
 ```
 
----
+### Agent Tools
 
-## Key Features
+| Tool | Responsibility |
+| --- | --- |
+| `get_renal_metric` | Finds the medication and its renal dosing brackets. |
+| `fetch_patient_crcl` | Retrieves the latest non-null SCr and eGFR values. |
+| `calculate_crcl` | Calculates Cockcroft-Gault CrCl from database demographics and SCr. |
 
-- **Real-Time Token Streaming (POST SSE)**: Real-time token streaming over HTTP POST using `eventsource-parser` and `fetch`. Does not require awkward GET query param encoding for large clinical notes.
-- **Terminal Report Validation**: Partial or streaming JSON is never treated as a completed audit. Only schemas that pass full Pydantic and Zod runtime validation upon receiving the terminal `done` event are rendered to the clinical team.
-- **Multi-Provider Engine**:
-  - **Google Gemini**: Built on the modern `google-genai` SDK (`gemini-2.5-flash`, `gemini-2.5-pro`).
-  - **OpenAI**: Structured output parsing with streaming delta handling and refusal detection (`gpt-4o`, `gpt-4o-mini`).
-  - **Offline Mock**: Zero-cost, deterministic, chunked simulation for offline testing, CI pipelines, and local development.
-- **Self-Healing LLM Feedback Loop**: If an LLM response fails schema validation, Pydantic validation errors are automatically formatted into feedback prompts and resubmitted to the model for self-correction.
-- **Contract-First Type Safety**: Single source of truth in FastAPI Pydantic models. OpenAPI exports compile automatically into TypeScript interfaces and runtime Zod schemas.
-- **Client Disconnect Handling**: Detects connection aborts mid-stream (`request.is_disconnected()`) and shuts down background generation pipelines immediately to conserve model quota.
-- **Interactive Review Desk**: Next.js App Router workspace with side-by-side note & rubric inspection, live TTFT / chunk latency metrics, a physician clarification queue, and criterion-by-criterion status badges (`met`, `unclear`, `missing`).
+### Implemented V1 Guardrails
 
----
+- `discharge_json` must contain a valid JSON object.
+- When a non-empty `patient_id` is supplied, renal tool calls are forced to use it.
+- The agent-facing CrCl tool excludes serum creatinine input and uses the database value.
+- A `safe` report with a missing renal metric or value is rejected.
+- Missing successful medication or renal tool evidence forces `insufficient_data`.
+- The agent stops after a bounded number of iterations.
+- HTTP endpoint errors are sanitized before reaching the browser.
 
-## Repository Structure
+## Technology
 
-```text
-MedV_micro_service/
-├── apps/
-│   ├── api/                           # FastAPI backend service
-│   │   ├── app/
-│   │   │   ├── api/v1/                # Health & audit endpoints (sync + SSE)
-│   │   │   ├── core/                  # App configuration & retry logic
-│   │   │   ├── schemas/               # Canonical Pydantic schemas (AuditRequest, ClinicalGapReport)
-│   │   │   ├── services/              # LLM providers (Gemini, OpenAI, Mock)
-│   │   │   └── static/                # Standalone HTML demo interface
-│   │   ├── tests/                     # 34 automated pytest suites
-│   │   ├── scripts/                   # OpenAPI contract export script
-│   │   └── pytest.ini
-│   └── web/                           # Next.js 16 clinical review application
-│       ├── src/
-│       │   ├── app/                   # App Router pages (/audit, /demo redirect)
-│       │   └── features/audit/        # State reducer, streaming hooks, fixtures & UI components
-│       └── e2e/                       # Playwright end-to-end integration tests
-├── packages/
-│   ├── api-client/                    # Generated OpenAPI contracts, Zod schemas & SSE client
-│   └── typescript-config/             # Shared TypeScript configuration
-├── scripts/
-│   ├── run_eval.py                    # Semantic benchmark against ground-truth clinical cases
-│   ├── benchmark_latency.py           # TTFT and latency benchmark across temperatures
-│   └── test_stream.py                 # CLI streaming validation utility
-├── clinical_notes/                    # Synthetic clinical encounter records
-├── policy_rubrics/                    # Payer prior-authorization policy guidelines
-├── eval_cases/                        # Ground-truth evaluation benchmarks & historical metrics
-├── docs/                              # Architecture, getting started & migration documentation
-├── package.json                       # Turborepo scripts & dependencies
-├── pnpm-workspace.yaml                # Monorepo workspace configuration
-└── turbo.json                         # Build pipeline cache definitions
-```
-
----
+- **Frontend:** Next.js 16, React 19, Tailwind CSS, shared `@medv/ui` components
+- **Backend:** FastAPI, Pydantic v2, SQLAlchemy async
+- **Database:** PostgreSQL with Alembic migrations
+- **AI:** Gemini tool calling; Stage 1 also supports OpenAI-compatible and mock providers
+- **Monorepo:** pnpm workspaces and Turborepo
+- **Testing:** Pytest, Vitest, Testing Library, Playwright
 
 ## Quick Start
 
-### Prerequisites
+### Requirements
 
-- **Python 3.13+**
-- **Node.js 20+**
-- **pnpm 11+** (`corepack enable`)
+- Python 3.13+
+- Node.js 20+
+- pnpm 11+
+- Docker, or an existing PostgreSQL database
 
-### Installation
+### 1. Install dependencies
 
-1. **Clone the repository:**
-   ```powershell
-   git clone https://github.com/your-org/MedV_micro_service.git
-   cd MedV_micro_service
-   ```
-
-2. **Configure Python Virtual Environment:**
-   ```powershell
-   python -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   python -m pip install --upgrade pip
-   python -m pip install -r apps/api/requirements.txt
-   ```
-
-3. **Install Monorepo Node Dependencies:**
-   ```powershell
-   corepack enable
-   pnpm install
-   ```
-
-### Environment Configuration
-
-Copy the backend environment template:
 ```powershell
-Copy-Item apps/api/.env.example apps/api/.env
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r apps/api/requirements.txt
+
+corepack enable
+pnpm install
 ```
 
-Edit `apps/api/.env`:
+### 2. Configure the API
 
-| Variable | Description | Default / Options |
-|---|---|---|
-| `LLM_PROVIDER` | Active LLM client | `mock` *(zero cost)*, `gemini`, `openai` |
-| `GEMINI_API_KEY` | Google AI Studio API key | Required if provider is `gemini` |
-| `GEMINI_MODEL` | Gemini model identifier | `gemini-2.5-flash` |
-| `OPENAI_API_KEY` | OpenAI API key | Required if provider is `openai` |
-| `OPENAI_MODEL` | OpenAI model identifier | `gpt-4o` |
-| `CORS_ORIGINS` | Permitted browser origins | `http://localhost:3000,http://127.0.0.1:3000` |
-| `APP_NAME` | Service name | `MedV Microservice` |
+Create `apps/api/.env` with placeholder values replaced locally:
 
-> [!TIP]
-> Setting `LLM_PROVIDER=mock` allows full local UI and API testing with simulated token streaming without requiring external API keys.
+```dotenv
+APP_NAME=MedV Microservice
+APP_VERSION=0.1.0
+DEBUG=false
+API_V1_PREFIX=/api/v1
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 
----
+LLM_PROVIDER=gemini
+LLM_MODEL=<SUPPORTED_GEMINI_MODEL>
+GEMINI_API_KEY=<YOUR_GEMINI_API_KEY>
 
-## Development Workflow
+DATABASE_URL=postgresql://medv_user:medv_password@localhost:5432/medv_db
+```
 
-Start all services concurrently with Turborepo:
+Use `LLM_PROVIDER=mock` for Stage 1 development without provider cost. Stage 2 currently requires Gemini and populated PostgreSQL data.
+
+### 3. Start PostgreSQL and migrate
 
 ```powershell
-# Activate your Python virtual environment first
-.\.venv\Scripts\Activate.ps1
+pnpm db:up
+pnpm db:migrate
+```
 
-# Launch both API (port 8000) and Web (port 3000)
+Stage 2 additionally requires synthetic patients, renal labs, medications, and renal dosing guidelines. The current Synthea script contains a local hard-coded CSV path that must be updated before running:
+
+```powershell
+pnpm seed:synthea
+```
+
+The Synthea script loads patients and labs only. Medication and renal-guideline reference data must be seeded separately from a reviewed source.
+
+### 4. Start the application
+
+```powershell
 pnpm dev
 ```
 
-Or run services independently:
+| Interface | URL |
+| --- | --- |
+| Web workspace | <http://127.0.0.1:3000/audit> |
+| Swagger API docs | <http://127.0.0.1:8000/docs> |
+| API health | <http://127.0.0.1:8000/api/v1/health> |
 
-```powershell
-pnpm dev:api   # Starts Uvicorn on http://127.0.0.1:8000 with reload
-pnpm dev:web   # Starts Next.js on http://127.0.0.1:3000
-```
+## API Summary
 
-### Key Service Interfaces
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/v1/health` | Service liveness and version information |
+| `POST` | `/api/v1/audit/evaluate` | Stage 1 non-streaming audit |
+| `POST` | `/api/v1/audit/evaluate/stream` | Stage 1 SSE audit |
+| `POST` | `/api/v1/renal/evaluate` | Stage 2 renal safety audit |
 
-| Service | Address | Description |
-|---|---|---|
-| **Clinical Audit Desk** | [http://127.0.0.1:3000/audit](http://127.0.0.1:3000/audit) | Next.js review application with real-time SSE streaming |
-| **Interactive API Docs** | [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) | Swagger UI for exploring and testing endpoints |
-| **Alternative Docs** | [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc) | ReDoc technical API documentation |
-| **Health Check** | [http://127.0.0.1:8000/api/v1/health](http://127.0.0.1:8000/api/v1/health) | Liveness and service metadata probe |
-| **Legacy HTML Demo** | [http://127.0.0.1:8000/demo](http://127.0.0.1:8000/demo) | Standalone client for direct backend testing |
+### Stage 2 Request
 
----
-
-## API & Streaming Protocol
-
-### Streaming Endpoint
-
-`POST /api/v1/audit/evaluate/stream`
-
-#### Request Payload
+`discharge_json` is currently sent as a JSON-encoded object string:
 
 ```json
 {
-  "clinical_note": "Patient presents with persistent lower-back pain for eight weeks. Neurological exam completed.",
-  "policy_rubric": "RUBRIC ID: MRI_PA_001\n1. Symptoms and Duration: Document primary back symptoms and specific duration.",
-  "rubric_id": "MRI_PA_001",
-  "temperature": 0.0
+  "discharge_json": "{\"patient_id\":\"synthetic-patient-id\",\"medication_name\":\"Gabapentin\",\"prescribed_daily_dose_mg\":900}"
 }
 ```
 
-#### Server-Sent Events Protocol
+### Stage 2 Response
 
-The endpoint delivers structured SSE frames with JSON payloads adhering to `StreamChunk`:
-
-```http
-HTTP/1.1 200 OK
-Content-Type: text/event-stream
-Cache-Control: no-cache, no-transform
-X-Accel-Buffering: no
-
-event: status
-data: {"event":"status","message":"Evaluating clinical note against rubric...","retries":0}
-
-event: token
-data: {"event":"token","text":"{\"rubric_id\": \"MRI_PA_001\""}
-
-event: done
-data: {"event":"done","report":{"rubric_id":"MRI_PA_001","evaluations":[{"criterion":"Symptoms and Duration","status":"met","evidence":"lower-back pain for eight weeks","explanation":"Specific duration documented.","suggested_clarification":null}],"missing_or_unclear_summary":[]},"retries":0}
+```json
+{
+  "patient_id": "synthetic-patient-id",
+  "medication_name": "Gabapentin",
+  "prescribed_daily_dose_mg": 900,
+  "required_renal_metric": "crcl",
+  "renal_metric_value": 52.4,
+  "verdict": "safe",
+  "lab_warning": null,
+  "rationale": "Dose evaluated against the matching renal guideline.",
+  "tool_trace": [
+    "get_renal_metric(...)",
+    "fetch_patient_crcl(...)",
+    "calculate_crcl(...)"
+  ]
+}
 ```
 
-#### Event Lifecycle
+The values above are illustrative. Actual results depend on seeded synthetic records and guidelines.
 
-| Event Type | Purpose | Key Fields |
-|---|---|---|
-| `status` | Reports progress, connection updates, or retry attempts | `message`, `retries` |
-| `token` | Incremental raw JSON text chunks streamed from the LLM | `text` |
-| `done` | Emits the complete, validated `ClinicalGapReport` | `report` |
-| `error` | Emits sanitized failure details with a support identifier | `error`, `request_id` |
+## Repository Layout
 
-#### Testing with `curl`:
-
-```powershell
-curl.exe -N -X POST "http://127.0.0.1:8000/api/v1/audit/evaluate/stream" `
-  -H "Content-Type: application/json" `
-  -d '{"clinical_note": "Patient reports back pain for 8 weeks.", "policy_rubric": "RUBRIC ID: MRI_01\n1. Symptoms and Duration"}'
+```text
+apps/
+  api/                         FastAPI routes, schemas, agent tools, DB models
+  web/                         Next.js Stage 1 and Stage 2 workspace
+packages/
+  api-client/                  Stage 1 contracts, Zod schemas, SSE client
+  ui/                          Shared React UI components
+  typescript-config/           Shared TypeScript settings
+scripts/                        Evaluation and latency utilities
 ```
 
----
+## Common Commands
 
-## Contract-First Generation
+| Command | Purpose |
+| --- | --- |
+| `pnpm dev` | Run API and web applications |
+| `pnpm test` | Run workspace tests |
+| `pnpm test:e2e` | Run Playwright tests |
+| `pnpm lint` | Run lint checks |
+| `pnpm typecheck` | Run TypeScript checks |
+| `pnpm build` | Build production packages |
+| `pnpm contracts:generate` | Regenerate OpenAPI and TypeScript contracts |
+| `pnpm db:migrate` | Apply Alembic migrations |
 
-The frontend client is strictly derived from FastAPI's OpenAPI specification. When adding or modifying backend models or endpoints:
+## Documentation
 
-```powershell
-# 1. Export OpenAPI JSON and generate TypeScript definitions
-pnpm contracts:generate
+- [Getting Started](docs/getting_started.md)
+- [Running and Testing](docs/running_and_testing.md)
+- [Project Structure](docs/project_structure.md)
+- [V1 Vercel Deployment Guide](docs/vercel_v1_deployment_guide.md)
 
-# 2. In CI: Ensure committed contracts match current backend schemas
-pnpm contracts:check
-```
+## Current V1 Limitations
 
-Pipeline details:
-1. `apps/api/scripts/export_openapi.py` exports `openapi.json`.
-2. `openapi-typescript` translates the specification into [`packages/api-client/src/generated/schema.d.ts`](file:///e:/Projects/MedV_micro_service/packages/api-client/src/generated/schema.d.ts).
-3. Runtime Zod schemas in [`packages/api-client/src/schemas.ts`](file:///e:/Projects/MedV_micro_service/packages/api-client/src/schemas.ts) validate all incoming wire payloads.
-
----
-
-## Semantic Evaluation & Benchmarking
-
-The repository includes tools for measuring clinical evaluation accuracy and streaming performance.
-
-### 1. Ground-Truth Semantic Evaluation (`scripts/run_eval.py`)
-
-Compares model decisions against ground-truth physician evaluations across synthetic clinical cases:
-
-```powershell
-# Run using the offline mock provider (zero cost)
-python scripts/run_eval.py --provider mock
-
-# Evaluate with Gemini 2.5 Flash
-python scripts/run_eval.py --provider gemini --model gemini-2.5-flash
-
-# Evaluate a specific test case
-python scripts/run_eval.py --case-id eval_001
-```
-
-Exports precision, recall, and per-criterion mismatch summaries to `eval_cases/eval_results.json`.
-
-### 2. Latency & TTFT Benchmarking (`scripts/benchmark_latency.py`)
-
-Measures Time-to-First-Token, overall streaming duration, token count, and tokens-per-second across temperature sweeps:
-
-```powershell
-python scripts/benchmark_latency.py --provider mock --runs 3 --temperatures 0.0,0.7
-```
-
----
-
-## Testing & Quality Assurance
-
-MedVigil maintains multi-layered test coverage across both backend and frontend.
-
-```powershell
-# Run all workspace tests
-pnpm test
-
-# Run TypeScript checks across packages
-pnpm typecheck
-
-# Run linter
-pnpm lint
-
-# Production build
-pnpm build
-```
-
-### Targeted Test Suites
-
-- **Backend Pytest** (34 tests including unit, integration, streaming, and retry tests):
-  ```powershell
-  python -m pytest -c apps/api/pytest.ini -v
-  ```
-- **Web Unit / Component Tests** (Vitest):
-  ```powershell
-  pnpm test:web
-  ```
-- **End-to-End User Journeys** (Playwright):
-  ```powershell
-  pnpm test:e2e
-  ```
-
----
-
-## Clinical Safety & Enterprise Design
-
-1. **Evidence Before Inference**:
-   - For any criterion marked `met`, the system must extract verbatim supporting sentences as `evidence`.
-   - Criteria marked `missing` sanitize evidence to `null`, preventing hallucinated justifications.
-   - Criteria marked `unclear` must provide an explicit, non-punitive `suggested_clarification` request to the physician.
-2. **Credential Isolation**:
-   - Provider API keys reside solely in server-side environment variables and are never transmitted to client bundles.
-3. **Resilience & Fault Tolerance**:
-   - Transient 429 and 503 errors use exponential backoff with randomized jitter.
-   - Malformed model responses trigger an automated validation retry loop that feeds Pydantic error details back to the LLM for self-correction.
-4. **Security & PHI Protection**:
-   - Mid-stream exceptions are masked behind generic error messages with unique request correlation IDs (`request_id`) for internal log auditing.
-
----
-
-## Documentation Index
-
-- [Getting Started Guide](docs/getting_started.md): Local environment setup, dependencies, and configuration.
-- [Running and Testing](docs/running_and_testing.md): CLI operations, manual endpoint testing, and CI commands.
-- [Project Architecture & Structure](docs/project_structure.md): Monorepo responsibilities, request lifecycles, and extension rules.
-- [Monorepo Implementation Plan](docs/nextjs_monorepo_implementation_plan.md): Architectural decisions and migration blueprint.
-
----
+- Use synthetic or fully de-identified data only.
+- Stage 2 requires pre-populated patient, lab, medication, and guideline tables.
+- Stage 2 discharge fields and frontend response types are not yet generated from a canonical typed contract.
+- The final renal value and verdict are not yet deterministically recomputed from tool outputs.
+- The renal result supports review; it does not replace clinical judgment.
+- Authentication, patient-level authorization, and production PHI controls are not yet implemented.
 
 ## License
 
-This project is licensed under the terms of the [MIT License](LICENSE).
-
----
-
-<div align="center">
-Built with strict typed contracts, real-time streaming, and clinical safety constraints.
-</div>
+Licensed under the [MIT License](LICENSE).

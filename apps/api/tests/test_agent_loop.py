@@ -4,6 +4,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 import pytest
 import pytest_asyncio
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -12,7 +13,7 @@ from app.models.medication import Medication, RenalDosingGuideline
 from app.models.patient import Patient, PatientLab
 from app.schemas.renal import RenalAuditReport
 from app.services.agent.loop import RenalAgentRunner
-from app.services.agent.tools import execute_tool_call
+from app.services.agent.tools import execute_tool_call, get_gemini_renal_tools
 
 
 @pytest_asyncio.fixture
@@ -246,3 +247,81 @@ async def test_loop_max_iterations_guard(loop_test_session):
     assert report.verdict == "insufficient_data"
     assert "maximum iteration limit" in report.rationale
     assert len(report.tool_trace) == 2
+
+
+def test_renal_report_forbids_safe_when_metric_is_null():
+    with pytest.raises(ValidationError):
+        RenalAuditReport(
+            patient_id="uuid-p001",
+            medication_name="Gabapentin",
+            required_renal_metric="crcl",
+            renal_metric_value=None,
+            verdict="safe",
+            rationale="Claimed safe without renal metric.",
+        )
+
+
+@pytest.mark.asyncio
+async def test_loop_forces_insufficient_data_when_tools_skipped(loop_test_session):
+    hallucinated_payload = RenalAuditReport(
+        patient_id="uuid-p001",
+        medication_name="Gabapentin",
+        prescribed_daily_dose_mg=1800.0,
+        required_renal_metric="crcl",
+        renal_metric_value=120.0,
+        verdict="safe",
+        rationale="Claimed safe without calling any database tools.",
+    ).model_dump()
+
+    fake_client = _FakeGeminiClient([
+        _make_text_response(hallucinated_payload),
+    ])
+
+    runner = RenalAgentRunner(client=fake_client, model="gemini-3.5-flash")
+    report = await runner.run(
+        discharge_json='{"patient_id": "uuid-p001", "medication": "Gabapentin", "daily_dose_mg": 1800}',
+        session=loop_test_session,
+    )
+
+    assert report.verdict == "insufficient_data"
+    assert len(report.tool_trace) == 0
+    assert "System Guardrail" in report.rationale
+
+
+def test_gemini_calculate_crcl_schema_excludes_scr():
+    tools = get_gemini_renal_tools()
+    declarations = tools[0].function_declarations
+    calc_decl = next(d for d in declarations if d.name == "calculate_crcl")
+    assert "serum_creatinine_mg_dl" not in calc_decl.parameters.properties
+
+
+@pytest.mark.asyncio
+async def test_loop_forces_verified_patient_id_and_strips_hallucinated_scr(loop_test_session):
+    final_payload = RenalAuditReport(
+        patient_id="uuid-p001",
+        medication_name="Gabapentin",
+        prescribed_daily_dose_mg=1800.0,
+        required_renal_metric="crcl",
+        renal_metric_value=149.91,
+        verdict="safe",
+        rationale="Verified using DB patient_id and DB SCr.",
+    ).model_dump()
+
+    # Model attempts to query wrong patient_id ('uuid-p002') and pass fake SCr (9.9)
+    fake_client = _FakeGeminiClient([
+        _make_fc_response("get_renal_metric", {"medication_name": "Gabapentin"}),
+        _make_fc_response("fetch_patient_crcl", {"patient_id": "uuid-p002"}),
+        _make_fc_response("calculate_crcl", {"patient_id": "uuid-p002", "serum_creatinine_mg_dl": 9.9}),
+        _make_text_response(final_payload),
+    ])
+
+    runner = RenalAgentRunner(client=fake_client, model="gemini-3.5-flash")
+    report = await runner.run(
+        discharge_json='{"patient_id": "uuid-p001", "medication": "Gabapentin", "daily_dose_mg": 1800}',
+        session=loop_test_session,
+    )
+
+    assert report.verdict == "safe"
+    assert all("uuid-p001" in trace for trace in report.tool_trace[1:])
+    assert all("uuid-p002" not in trace for trace in report.tool_trace)
+    assert all("serum_creatinine_mg_dl" not in trace for trace in report.tool_trace)
