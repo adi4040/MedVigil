@@ -10,7 +10,7 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 
 from app.core.config import settings
-from app.core.prompts import SYSTEM_PROMPT, create_audit_user_prompt
+from app.core.prompts import STAGE1_SYSTEM_PROMPT, create_audit_user_prompt
 from app.core.retry import (
     AuditEvaluationExhaustedError,
     RetryConfig,
@@ -98,7 +98,7 @@ class OpenAIAuditClient(BaseLLMClient):
         temp = 0.0 if temperature is None else temperature
 
         messages: List[Dict[str, str]] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": STAGE1_SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
         ]
 
@@ -187,7 +187,7 @@ class OpenAIAuditClient(BaseLLMClient):
         temp = 0.0 if temperature is None else temperature
 
         messages: List[Dict[str, str]] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": STAGE1_SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
         ]
 
@@ -316,7 +316,7 @@ class GeminiAuditClient(BaseLLMClient):
                     model=self.model,
                     contents=contents,
                     config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_PROMPT,
+                        system_instruction=STAGE1_SYSTEM_PROMPT,
                         temperature=temp,
                         response_mime_type="application/json",
                         response_schema=ClinicalGapReport,
@@ -417,7 +417,7 @@ class GeminiAuditClient(BaseLLMClient):
                     model=self.model,
                     contents=contents,
                     config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_PROMPT,
+                        system_instruction=STAGE1_SYSTEM_PROMPT,
                         temperature=temp,
                         response_mime_type="application/json",
                         response_schema=ClinicalGapReport,

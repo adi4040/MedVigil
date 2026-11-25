@@ -131,16 +131,16 @@ async def fetch_patient_crcl(
 ) -> Dict[str, Any]:
     """Query PostgreSQL for a patient's creatinine clearance (CrCl) and renal laboratory history.
 
-    Accepts either the generic patient ID mentioned in clinical notes (e.g. 'PAT-001')
-    or the internal database UUID.
+    Accurately scans longitudinal lab panels for the newest non-null Serum Creatinine (SCr)
+    and eGFR, ensuring newer eGFR-only panels do not mask older valid SCr measurements.
 
     Args:
-        patient_id: Generic patient identifier (e.g. 'PAT-001', 'P001') or unique patient UUID.
+        patient_id: Unique patient identifier (MRN or subject ID).
         session: Optional active SQLAlchemy AsyncSession.
 
     Returns:
         A dictionary with patient renal lab status. If CrCl is not recorded in the lab table,
-        indicates missing status and returns latest available serum creatinine and eGFR measurements.
+        indicates missing status and returns the latest available non-null SCr and eGFR.
     """
     clean_id = patient_id.strip()
     if not clean_id:
@@ -153,12 +153,7 @@ async def fetch_patient_crcl(
         stmt = (
             select(Patient)
             .options(selectinload(Patient.labs))
-            .where(
-                or_(
-                    func.lower(Patient.generic_patient_id) == clean_id.lower(),
-                    Patient.patient_id == clean_id,
-                )
-            )
+            .where(Patient.patient_id == clean_id)
         )
         result = await s.execute(stmt)
         patient = result.scalar_one_or_none()
@@ -169,39 +164,50 @@ async def fetch_patient_crcl(
                 "message": f"Patient with identifier '{clean_id}' was not found in the database.",
             }
 
-        # Check latest lab panel
         labs = patient.labs
-        latest_lab: Optional[PatientLab] = labs[0] if labs else None
 
-        # CrCl is not a direct standard lab draw in routine panels (which record SCr and eGFR)
-        # We report whether CrCl is present or missing
-        latest_scr = (
-            float(latest_lab.serum_creatinine_mg_dl)
-            if latest_lab and latest_lab.serum_creatinine_mg_dl is not None
-            else None
-        )
-        latest_egfr = (
-            float(latest_lab.egfr_ml_min_1_73m2)
-            if latest_lab and latest_lab.egfr_ml_min_1_73m2 is not None
-            else None
-        )
-        collected_at_str = latest_lab.collected_at.isoformat() if latest_lab else None
+        # Scan for the newest panel with a non-null serum creatinine measurement
+        newest_scr: Optional[float] = None
+        scr_collected_at: Optional[str] = None
+        for lab in labs:
+            if lab.serum_creatinine_mg_dl is not None:
+                newest_scr = float(lab.serum_creatinine_mg_dl)
+                scr_collected_at = lab.collected_at.isoformat()
+                break
+
+        # Scan for the newest panel with a non-null eGFR measurement
+        newest_egfr: Optional[float] = None
+        egfr_collected_at: Optional[str] = None
+        for lab in labs:
+            if lab.egfr_ml_min_1_73m2 is not None:
+                newest_egfr = float(lab.egfr_ml_min_1_73m2)
+                egfr_collected_at = lab.collected_at.isoformat()
+                break
+
+        # Formulate accurate, non-contradictory message based on actual SCr presence
+        if newest_scr is not None:
+            message = (
+                "Creatinine clearance (CrCl) is not directly recorded in the patient labs table. "
+                "Serum creatinine is available; please call calculate_crcl to compute CrCl using "
+                "the Cockcroft-Gault formula."
+            )
+        else:
+            message = (
+                "Creatinine clearance (CrCl) is not directly recorded in the patient labs table, "
+                "and no serum creatinine measurements were found in the patient's lab history."
+            )
 
         return {
             "status": "missing",
             "crcl_found": False,
             "patient_id": patient.patient_id,
-            "generic_patient_id": patient.generic_patient_id,
             "patient_name": patient.name,
             "total_lab_panels": len(labs),
-            "latest_serum_creatinine_mg_dl": latest_scr,
-            "latest_egfr_ml_min_1_73m2": latest_egfr,
-            "lab_collected_at": collected_at_str,
-            "message": (
-                "Creatinine clearance (CrCl) is not directly recorded in the patient labs table. "
-                "Serum creatinine is available; please call calculate_crcl to compute CrCl using "
-                "the Cockcroft-Gault formula."
-            ),
+            "latest_serum_creatinine_mg_dl": newest_scr,
+            "serum_creatinine_collected_at": scr_collected_at,
+            "latest_egfr_ml_min_1_73m2": newest_egfr,
+            "egfr_collected_at": egfr_collected_at,
+            "message": message,
         }
 
     if session is not None:
@@ -224,7 +230,7 @@ async def calculate_crcl(
         CrCl (mL/min) = [((140 - age) * weight_kg) / (72 * SCr)] * (0.85 if female else 1.0)
 
     Args:
-        patient_id: Generic patient identifier (e.g. 'PAT-001') or patient UUID.
+        patient_id: Unique patient identifier (MRN or subject ID).
         serum_creatinine_mg_dl: Optional explicit serum creatinine in mg/dL. If omitted,
                                 the patient's latest lab result is retrieved from PostgreSQL.
         session: Optional active SQLAlchemy AsyncSession.
@@ -243,12 +249,7 @@ async def calculate_crcl(
         stmt = (
             select(Patient)
             .options(selectinload(Patient.labs))
-            .where(
-                or_(
-                    func.lower(Patient.generic_patient_id) == clean_id.lower(),
-                    Patient.patient_id == clean_id,
-                )
-            )
+            .where(Patient.patient_id == clean_id)
         )
         result = await s.execute(stmt)
         patient = result.scalar_one_or_none()
@@ -277,7 +278,6 @@ async def calculate_crcl(
             return {
                 "status": "error",
                 "patient_id": patient.patient_id,
-                "generic_patient_id": patient.generic_patient_id,
                 "message": f"Cannot calculate CrCl: No serum creatinine measurement exists for patient '{clean_id}'.",
             }
 
@@ -311,7 +311,6 @@ async def calculate_crcl(
         return {
             "status": "success",
             "patient_id": patient.patient_id,
-            "generic_patient_id": patient.generic_patient_id,
             "patient_name": patient.name,
             "calculated_crcl_ml_min": calculated_crcl,
             "formula": "Cockcroft-Gault",

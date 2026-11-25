@@ -31,13 +31,6 @@ class Patient(Base):
         index=True,
         doc="Unique patient identifier (MRN or subject ID).",
     )
-    generic_patient_id: Mapped[Optional[str]] = mapped_column(
-        String(64),
-        nullable=True,
-        unique=True,
-        index=True,
-        doc="Generic or clinical patient identifier referenced in clinical notes (e.g., PAT-001, P001).",
-    )
     name: Mapped[Optional[str]] = mapped_column(
         String(128),
         nullable=True,
@@ -89,7 +82,7 @@ class Patient(Base):
 
     def __repr__(self) -> str:
         return (
-            f"<Patient(patient_id={self.patient_id!r}, generic_id={self.generic_patient_id!r}, "
+            f"<Patient(patient_id={self.patient_id!r}, "
             f"name={self.name!r}, age={self.age_years}, sex={self.biological_sex!r}, "
             f"weight_kg={self.actual_weight_kg}, height_cm={self.height_cm})>"
         )
