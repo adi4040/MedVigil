@@ -1,0 +1,5 @@
+[tool.pyrefly]
+search-path = ["apps/api", "."]
+
+[tool.pyright]
+extraPaths = ["apps/api", "."]

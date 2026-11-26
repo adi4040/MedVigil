@@ -37,10 +37,11 @@ async def evaluate_renal_dosing(
         )
 
     try:
-        return await runner.run(
+        result = await runner.run(
             discharge_json=request.discharge_json,
             session=db,
         )
+        return result["report"]
     except ValidationError as exc:
         logger.error("Stage 2 model returned invalid report schema: %s", exc)
         raise HTTPException(

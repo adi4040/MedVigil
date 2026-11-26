@@ -95,18 +95,26 @@ async def loop_test_session():
     await engine.dispose()
 
 
-def _make_fc_response(name: str, args: dict):
+def _make_fc_response(name: str, args: dict, prompt_tokens: int = 100, candidate_tokens: int = 25):
     fc = SimpleNamespace(name=name, args=args)
     candidate = SimpleNamespace(content=SimpleNamespace(role="model", parts=[]))
-    return SimpleNamespace(function_calls=[fc], candidates=[candidate], text=None)
+    usage = SimpleNamespace(prompt_token_count=prompt_tokens, candidates_token_count=candidate_tokens)
+    return SimpleNamespace(
+        function_calls=[fc],
+        candidates=[candidate],
+        text=None,
+        usage_metadata=usage,
+    )
 
 
-def _make_text_response(payload: dict):
+def _make_text_response(payload: dict, prompt_tokens: int = 150, candidate_tokens: int = 40):
     candidate = SimpleNamespace(content=SimpleNamespace(role="model", parts=[]))
+    usage = SimpleNamespace(prompt_token_count=prompt_tokens, candidates_token_count=candidate_tokens)
     return SimpleNamespace(
         function_calls=[],
         candidates=[candidate],
         text=json.dumps(payload),
+        usage_metadata=usage,
     )
 
 
@@ -159,13 +167,18 @@ async def test_loop_crcl_full_chain_safe(loop_test_session):
     ])
 
     runner = RenalAgentRunner(client=fake_client, model="gemini-3.5-flash")
-    report = await runner.run(
+    result = await runner.run(
         discharge_json='{"patient_id": "uuid-p001", "medication": "Gabapentin", "daily_dose_mg": 1800}',
         session=loop_test_session,
     )
+    report = result["report"]
 
     assert report.verdict == "safe"
     assert report.required_renal_metric == "crcl"
+    assert result["tools_called"] == ["get_renal_metric", "fetch_patient_crcl", "calculate_crcl"]
+    assert result["steps"] == 4
+    assert result["input_tokens"] == 450
+    assert result["output_tokens"] == 115
     assert len(report.tool_trace) == 3
     assert report.tool_trace[0].startswith("get_renal_metric")
     assert report.tool_trace[1].startswith("fetch_patient_crcl")
@@ -191,12 +204,15 @@ async def test_loop_egfr_skips_calculate_crcl(loop_test_session):
     ])
 
     runner = RenalAgentRunner(client=fake_client, model="gemini-3.5-flash")
-    report = await runner.run(
+    result = await runner.run(
         discharge_json='{"patient_id": "uuid-p001", "medication": "Metformin", "daily_dose_mg": 2500}',
         session=loop_test_session,
     )
+    report = result["report"]
 
     assert report.verdict == "dose_adjustment_required"
+    assert result["tools_called"] == ["get_renal_metric", "fetch_patient_crcl"]
+    assert result["steps"] == 3
     assert len(report.tool_trace) == 2
     assert not any(call.startswith("calculate_crcl") for call in report.tool_trace)
 
@@ -220,12 +236,14 @@ async def test_loop_missing_biomarker_halts_insufficient_data(loop_test_session)
     ])
 
     runner = RenalAgentRunner(client=fake_client, model="gemini-3.5-flash")
-    report = await runner.run(
+    result = await runner.run(
         discharge_json='{"patient_id": "uuid-p002", "medication": "Gabapentin", "daily_dose_mg": 900}',
         session=loop_test_session,
     )
+    report = result["report"]
 
     assert report.verdict == "insufficient_data"
+    assert result["tools_called"] == ["get_renal_metric", "fetch_patient_crcl"]
     assert len(report.tool_trace) == 2
 
 
@@ -237,14 +255,16 @@ async def test_loop_max_iterations_guard(loop_test_session):
     ])
 
     runner = RenalAgentRunner(client=fake_client, model="gemini-3.5-flash", max_iterations=2)
-    report = await runner.run(
+    result = await runner.run(
         discharge_json='{"patient_id": "uuid-p001", "medication": "Gabapentin"}',
         session=loop_test_session,
         patient_id_hint="uuid-p001",
         medication_hint="Gabapentin",
     )
+    report = result["report"]
 
     assert report.verdict == "insufficient_data"
+    assert result["steps"] == 2
     assert "maximum iteration limit" in report.rationale
     assert len(report.tool_trace) == 2
 
@@ -278,12 +298,14 @@ async def test_loop_forces_insufficient_data_when_tools_skipped(loop_test_sessio
     ])
 
     runner = RenalAgentRunner(client=fake_client, model="gemini-3.5-flash")
-    report = await runner.run(
+    result = await runner.run(
         discharge_json='{"patient_id": "uuid-p001", "medication": "Gabapentin", "daily_dose_mg": 1800}',
         session=loop_test_session,
     )
+    report = result["report"]
 
     assert report.verdict == "insufficient_data"
+    assert result["tools_called"] == []
     assert len(report.tool_trace) == 0
     assert "System Guardrail" in report.rationale
 
@@ -316,12 +338,14 @@ async def test_loop_forces_verified_patient_id_and_strips_hallucinated_scr(loop_
     ])
 
     runner = RenalAgentRunner(client=fake_client, model="gemini-3.5-flash")
-    report = await runner.run(
+    result = await runner.run(
         discharge_json='{"patient_id": "uuid-p001", "medication": "Gabapentin", "daily_dose_mg": 1800}',
         session=loop_test_session,
     )
+    report = result["report"]
 
     assert report.verdict == "safe"
+    assert result["tools_called"] == ["get_renal_metric", "fetch_patient_crcl", "calculate_crcl"]
     assert all("uuid-p001" in trace for trace in report.tool_trace[1:])
     assert all("uuid-p002" not in trace for trace in report.tool_trace)
     assert all("serum_creatinine_mg_dl" not in trace for trace in report.tool_trace)

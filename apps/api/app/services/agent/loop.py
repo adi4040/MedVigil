@@ -22,6 +22,7 @@ class RenalAgentRunner:
         model: Optional[str] = None,
         client: Optional[Any] = None,
         max_iterations: int = 8,
+        temperature: float = 0.0,
     ):
         if client is not None:
             self.client = client
@@ -37,6 +38,7 @@ class RenalAgentRunner:
 
         self.model = model or settings.LLM_MODEL or "gemini-3.5-flash"
         self.max_iterations = max_iterations
+        self.temperature = temperature
 
     async def run(
         self,
@@ -44,13 +46,17 @@ class RenalAgentRunner:
         session: Optional[AsyncSession] = None,
         patient_id_hint: str = "unknown",
         medication_hint: str = "unknown",
-    ) -> RenalAuditReport:
-        """Execute the Stage 2 autonomous tool-calling loop and return a validated RenalAuditReport."""
+    ) -> Dict[str, Any]:
+        """Execute the Stage 2 autonomous tool-calling loop and return report + telemetry."""
         from google.genai import types
 
         user_prompt = create_renal_agent_user_prompt(discharge_json)
         tools = get_gemini_renal_tools()
         tool_trace: List[str] = []
+        tools_called: List[str] = []
+        steps = 0
+        input_tokens = 0
+        output_tokens = 0
 
         verified_patient_id: Optional[str] = None
         try:
@@ -74,15 +80,19 @@ class RenalAgentRunner:
         ]
 
         for iteration in range(1, self.max_iterations + 1):
+            steps += 1
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=STAGE2_SYSTEM_PROMPT,
-                    temperature=0.0,
+                    temperature=self.temperature,
                     tools=tools,
                 ),
             )
+            in_tok, out_tok = _extract_token_usage(response)
+            input_tokens += in_tok
+            output_tokens += out_tok
 
             function_calls = getattr(response, "function_calls", None) or []
             if function_calls:
@@ -99,6 +109,7 @@ class RenalAgentRunner:
                     if fc_name == "calculate_crcl":
                         fc_args.pop("serum_creatinine_mg_dl", None)
 
+                    tools_called.append(fc_name)
                     tool_trace.append(f"{fc_name}({fc_args})")
                     logger.info(
                         "[RenalAgentRunner] Iter %d executing %s(%s)",
@@ -136,7 +147,14 @@ class RenalAgentRunner:
                 try:
                     report = RenalAuditReport.model_validate_json(raw_text)
                     report.tool_trace = tool_trace
-                    return _enforce_tool_evidence(report, metric_result, lab_result, crcl_result)
+                    report = _enforce_tool_evidence(report, metric_result, lab_result, crcl_result)
+                    return {
+                        "report": report,
+                        "tools_called": tools_called,
+                        "steps": steps,
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                    }
                 except ValidationError:
                     pass
 
@@ -156,27 +174,39 @@ class RenalAgentRunner:
                     ],
                 )
             )
+            steps += 1
             structured_resp = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=STAGE2_SYSTEM_PROMPT,
-                    temperature=0.0,
+                    temperature=self.temperature,
                     response_mime_type="application/json",
                     response_schema=RenalAuditReport,
                 ),
             )
+            in_tok, out_tok = _extract_token_usage(structured_resp)
+            input_tokens += in_tok
+            output_tokens += out_tok
+
             structured_text = (getattr(structured_resp, "text", None) or "").strip()
             report = RenalAuditReport.model_validate_json(structured_text)
             report.tool_trace = tool_trace
-            return _enforce_tool_evidence(report, metric_result, lab_result, crcl_result)
+            report = _enforce_tool_evidence(report, metric_result, lab_result, crcl_result)
+            return {
+                "report": report,
+                "tools_called": tools_called,
+                "steps": steps,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+            }
 
         logger.warning(
             "[RenalAgentRunner] Reached max_iterations (%d) without final verdict.",
             self.max_iterations,
         )
-        return RenalAuditReport(
-            patient_id=patient_id_hint,
+        fallback_report = RenalAuditReport(
+            patient_id=verified_patient_id or patient_id_hint,
             medication_name=medication_hint,
             verdict="insufficient_data",
             rationale=(
@@ -185,6 +215,23 @@ class RenalAgentRunner:
             ),
             tool_trace=tool_trace,
         )
+        return {
+            "report": fallback_report,
+            "tools_called": tools_called,
+            "steps": steps,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+        }
+
+
+def _extract_token_usage(response: Any) -> tuple[int, int]:
+    """Extract (input_tokens, output_tokens) from Gemini usage_metadata safely."""
+    usage = getattr(response, "usage_metadata", None)
+    if usage is None:
+        return 0, 0
+    prompt_tokens = getattr(usage, "prompt_token_count", 0) or 0
+    candidate_tokens = getattr(usage, "candidates_token_count", 0) or 0
+    return int(prompt_tokens), int(candidate_tokens)
 
 
 def _has_verified_tool_evidence(

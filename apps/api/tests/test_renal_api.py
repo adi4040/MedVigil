@@ -81,3 +81,43 @@ def test_renal_evaluate_internal_error_returns_500_without_db_leak():
         assert "secret" not in resp.text
     finally:
         app.dependency_overrides.clear()
+
+
+def test_renal_evaluate_returns_report_without_internal_telemetry():
+    app.dependency_overrides[get_db] = _override_get_db
+    try:
+        report = RenalAuditReport(
+            patient_id="p1",
+            medication_name="Gabapentin",
+            prescribed_daily_dose_mg=1800.0,
+            required_renal_metric="crcl",
+            renal_metric_value=95.0,
+            verdict="safe",
+            rationale="Within guidelines.",
+            tool_trace=["get_renal_metric({'medication_name': 'Gabapentin'})"],
+        )
+        runner_instance = MagicMock()
+        runner_instance.run = AsyncMock(
+            return_value={
+                "report": report,
+                "tools_called": ["get_renal_metric", "fetch_patient_crcl", "calculate_crcl"],
+                "steps": 4,
+                "input_tokens": 500,
+                "output_tokens": 120,
+            }
+        )
+        with patch("app.api.v1.renal.RenalAgentRunner", return_value=runner_instance):
+            with TestClient(app) as client:
+                resp = client.post(
+                    "/api/v1/renal/evaluate",
+                    json={"discharge_json": '{"patient_id": "p1", "medication_name": "Gabapentin"}'},
+                )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["verdict"] == "safe"
+        assert "steps" not in body
+        assert "input_tokens" not in body
+        assert "output_tokens" not in body
+        assert "tools_called" not in body
+    finally:
+        app.dependency_overrides.clear()
