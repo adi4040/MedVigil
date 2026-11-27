@@ -113,15 +113,73 @@ async def test_benchmark_evaluate_cases_metrics_aggregation():
 
         summary = results["summary"]
         assert summary["total_cases"] == 2
+        assert summary["completed_cases"] == 2
+        assert summary["errored_cases"] == 0
         assert summary["task_passed"] == 2
         assert summary["task_pass_rate_pct"] == 100.0
+        assert summary["completed_task_pass_rate_pct"] == 100.0
         assert summary["tool_exact_matches"] == 2
         assert summary["tool_selection_accuracy_pct"] == 100.0
+        assert summary["completed_tool_accuracy_pct"] == 100.0
         assert summary["avg_steps"] == 4.0
         assert summary["total_input_tokens"] == 2200
         assert summary["total_output_tokens"] == 200
         assert summary["total_cost_usd"] == round(
             (2200 / 1_000_000) * 0.30 + (200 / 1_000_000) * 2.50, 6
         )
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_benchmark_separates_errored_cases_from_completed_metrics():
+    engine, session_factory = await create_benchmark_session_factory()
+    try:
+        cases = json.loads(EVAL_CASES_PATH.read_text(encoding="utf-8"))[:2]
+
+        class _PartialErrorRunner:
+            model = "gemini-3.5-flash-lite"
+            temperature = 0.0
+
+            def __init__(self):
+                self.calls = 0
+
+            async def run(self, *, discharge_json, session):
+                self.calls += 1
+                if self.calls == 1:
+                    return {
+                        "report": RenalAuditReport(
+                            patient_id="bench-pt-01",
+                            medication_name="Gabapentin",
+                            prescribed_daily_dose_mg=1800.0,
+                            required_renal_metric="crcl",
+                            renal_metric_value=100.0,
+                            verdict="safe",
+                            rationale="Safe.",
+                        ),
+                        "tools_called": ["get_renal_metric", "fetch_patient_crcl", "calculate_crcl"],
+                        "steps": 4,
+                        "input_tokens": 1000,
+                        "output_tokens": 100,
+                    }
+                raise RuntimeError("503 UNAVAILABLE")
+
+        results = await evaluate_cases(
+            cases=cases,
+            runner=_PartialErrorRunner(),  # type: ignore[arg-type]
+            session_factory=session_factory,
+            delay_seconds=0.0,
+        )
+
+        s = results["summary"]
+        assert s["total_cases"] == 2
+        assert s["completed_cases"] == 1
+        assert s["errored_cases"] == 1
+        assert s["task_passed"] == 1
+        assert s["task_failed"] == 0  # No reasoning failure; 1 API error
+        assert s["task_pass_rate_pct"] == 50.0
+        assert s["completed_task_pass_rate_pct"] == 100.0
+        assert s["completed_tool_accuracy_pct"] == 100.0
+        assert s["avg_steps"] == 4.0  # Not dragged down to 2.0 by the 503 error
     finally:
         await engine.dispose()

@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
+from app.core.retry import AuditEvaluationExhaustedError, RetryConfig
 from app.db.base import Base
 from app.models.medication import Medication, RenalDosingGuideline
 from app.models.patient import Patient, PatientLab
@@ -349,3 +350,147 @@ async def test_loop_forces_verified_patient_id_and_strips_hallucinated_scr(loop_
     assert all("uuid-p001" in trace for trace in report.tool_trace[1:])
     assert all("uuid-p002" not in trace for trace in report.tool_trace)
     assert all("serum_creatinine_mg_dl" not in trace for trace in report.tool_trace)
+
+
+@pytest.mark.asyncio
+async def test_loop_retries_transient_errors_with_backoff_and_keeps_step_count(
+    loop_test_session, monkeypatch
+):
+    sleep_delays = []
+
+    async def fake_sleep(seconds: float):
+        sleep_delays.append(seconds)
+
+    monkeypatch.setattr("app.services.agent.loop.asyncio.sleep", fake_sleep)
+
+    final_payload = RenalAuditReport(
+        patient_id="uuid-p001",
+        medication_name="Metformin",
+        prescribed_daily_dose_mg=1500.0,
+        required_renal_metric="egfr",
+        renal_metric_value=110.0,
+        verdict="safe",
+        rationale="Safe dose.",
+    ).model_dump()
+
+    events = [
+        RuntimeError("503 UNAVAILABLE. high demand."),
+        RuntimeError("429 RESOURCE_EXHAUSTED. Please retry in 31.0s."),
+        _make_fc_response("get_renal_metric", {"medication_name": "Metformin"}),
+        _make_fc_response("fetch_patient_crcl", {"patient_id": "uuid-p001"}),
+        _make_text_response(final_payload),
+    ]
+
+    class _FlakyModels:
+        async def generate_content(self, *, model, contents, config):
+            item = events.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
+
+    fake_client = SimpleNamespace(aio=SimpleNamespace(models=_FlakyModels()))
+    runner = RenalAgentRunner(
+        client=fake_client,
+        model="gemini-3.5-flash-lite",
+        retry_config=RetryConfig(max_retries=3, base_delay=2.0, max_delay=45.0, jitter=False),
+    )
+    result = await runner.run(
+        discharge_json='{"patient_id": "uuid-p001", "medication": "Metformin", "daily_dose_mg": 1500}',
+        session=loop_test_session,
+    )
+
+    assert result["report"].verdict == "safe"
+    assert result["steps"] == 3  # Only successful model turns are counted
+    assert result["tools_called"] == ["get_renal_metric", "fetch_patient_crcl"]
+    assert sleep_delays == [2.0, 31.0]
+
+
+@pytest.mark.asyncio
+async def test_loop_fails_immediately_on_non_transient_error(loop_test_session, monkeypatch):
+    sleep_delays = []
+
+    async def fake_sleep(seconds: float):
+        sleep_delays.append(seconds)
+
+    monkeypatch.setattr("app.services.agent.loop.asyncio.sleep", fake_sleep)
+
+    class _BrokenModels:
+        async def generate_content(self, *, model, contents, config):
+            raise ValueError("Invalid API argument")
+
+    fake_client = SimpleNamespace(aio=SimpleNamespace(models=_BrokenModels()))
+    runner = RenalAgentRunner(
+        client=fake_client,
+        model="gemini-3.5-flash-lite",
+        retry_config=RetryConfig(max_retries=3, base_delay=2.0, max_delay=45.0, jitter=False),
+    )
+
+    with pytest.raises(ValueError, match="Invalid API argument"):
+        await runner.run(
+            discharge_json='{"patient_id": "uuid-p001", "medication": "Metformin"}',
+            session=loop_test_session,
+        )
+    assert sleep_delays == []
+
+
+@pytest.mark.asyncio
+async def test_loop_raises_exhausted_error_after_max_retries(loop_test_session, monkeypatch):
+    sleep_delays = []
+
+    async def fake_sleep(seconds: float):
+        sleep_delays.append(seconds)
+
+    monkeypatch.setattr("app.services.agent.loop.asyncio.sleep", fake_sleep)
+
+    class _Always503Models:
+        async def generate_content(self, *, model, contents, config):
+            raise RuntimeError("503 UNAVAILABLE. high demand.")
+
+    fake_client = SimpleNamespace(aio=SimpleNamespace(models=_Always503Models()))
+    runner = RenalAgentRunner(
+        client=fake_client,
+        model="gemini-3.5-flash-lite",
+        retry_config=RetryConfig(max_retries=2, base_delay=2.0, max_delay=16.0, jitter=False),
+    )
+
+    with pytest.raises(AuditEvaluationExhaustedError, match="failed after 3 attempts"):
+        await runner.run(
+            discharge_json='{"patient_id": "uuid-p001", "medication": "Metformin"}',
+            session=loop_test_session,
+        )
+    assert sleep_delays == [2.0, 4.0]
+
+
+@pytest.mark.asyncio
+async def test_loop_parses_fenced_json_without_extra_roundtrip(loop_test_session):
+    final_payload = RenalAuditReport(
+        patient_id="uuid-p001",
+        medication_name="Metformin",
+        prescribed_daily_dose_mg=1500.0,
+        required_renal_metric="egfr",
+        renal_metric_value=110.0,
+        verdict="safe",
+        rationale="Safe.",
+    ).model_dump_json()
+
+    fenced_response = SimpleNamespace(
+        function_calls=[],
+        candidates=[SimpleNamespace(content=SimpleNamespace(role="model", parts=[]))],
+        text=f"```json\n{final_payload}\n```",
+        usage_metadata=SimpleNamespace(prompt_token_count=150, candidates_token_count=40),
+    )
+
+    fake_client = _FakeGeminiClient([
+        _make_fc_response("get_renal_metric", {"medication_name": "Metformin"}),
+        _make_fc_response("fetch_patient_crcl", {"patient_id": "uuid-p001"}),
+        fenced_response,
+    ])
+
+    runner = RenalAgentRunner(client=fake_client, model="gemini-3.5-flash-lite")
+    result = await runner.run(
+        discharge_json='{"patient_id": "uuid-p001", "medication": "Metformin", "daily_dose_mg": 1500}',
+        session=loop_test_session,
+    )
+
+    assert result["report"].verdict == "safe"
+    assert result["steps"] == 3  # No extra 4th structured-output roundtrip!

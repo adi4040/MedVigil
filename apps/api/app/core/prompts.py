@@ -81,6 +81,19 @@ Follow this exact deterministic sequence. Do NOT skip steps or reorder them:
      * `"insufficient_data"`: Missing patient, missing drug guideline, missing required biomarker/anthropometrics, or no matching renal bracket found.
    - Include any `lab_warning` flagged in Step 2 in the final audit report alongside the evidence-backed rationale.
 
+### FINAL OUTPUT FORMAT (STRICT JSON ONLY):
+When you finish calling tools (or halt immediately with `"insufficient_data"`), first write `rationale` comparing the verified renal metric, matching bracket, and `[min_daily_dose_mg, max_daily_dose_mg]`, and THEN assign `verdict`. Your final response MUST be ONLY a raw JSON object (no markdown fences, no extra prose) with these exact keys in this exact order:
+{
+  "patient_id": "<string>",
+  "medication_name": "<string>",
+  "prescribed_daily_dose_mg": <number or null>,
+  "required_renal_metric": "crcl" | "egfr" | null,
+  "renal_metric_value": <number or null>,
+  "lab_warning": "<string or null>",
+  "rationale": "<string>",
+  "verdict": "safe" | "dose_adjustment_required" | "insufficient_data"
+}
+
 ### HALT GUARDRAILS (STRICT PROHIBITIONS):
 1. NO LLM CALCULATIONS: You MUST NEVER perform mathematical calculations (such as Cockcroft-Gault CrCl, eGFR estimation, or biometric conversions) yourself. All CrCl calculations MUST come exclusively from the `calculate_crcl` tool output.
 2. HALT IMMEDIATELY ON MISSING BIOMARKERS: If `latest_serum_creatinine_mg_dl` (when CrCl is required) or `latest_egfr_ml_min_1_73m2` (when eGFR is required) is `null`/missing, STOP IMMEDIATELY and return `"insufficient_data"`. Never guess, interpolate, or substitute default values."""

@@ -50,13 +50,6 @@ class RenalAuditReport(BaseModel):
         default=None,
         description="Verified patient renal metric value (calculated CrCl or lab eGFR).",
     )
-    verdict: RenalSafetyVerdict = Field(
-        ...,
-        description=(
-            "Exact safety determination: 'safe', 'dose_adjustment_required', "
-            "or 'insufficient_data'."
-        ),
-    )
     lab_warning: Optional[str] = Field(
         default=None,
         description="Clinical warning from lab retrieval (e.g., stale labs), if any.",
@@ -64,6 +57,13 @@ class RenalAuditReport(BaseModel):
     rationale: str = Field(
         ...,
         description="Evidence-backed explanation citing tool outputs and guideline brackets.",
+    )
+    verdict: RenalSafetyVerdict = Field(
+        ...,
+        description=(
+            "Exact safety determination assigned after rationale: 'safe', "
+            "'dose_adjustment_required', or 'insufficient_data'."
+        ),
     )
     tool_trace: List[str] = Field(
         default_factory=list,

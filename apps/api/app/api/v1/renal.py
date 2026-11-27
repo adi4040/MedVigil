@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.retry import AuditEvaluationExhaustedError
 from app.db.session import get_db
 from app.schemas.renal import RenalAuditReport, RenalAuditRequest
 from app.services.agent.loop import RenalAgentRunner
@@ -47,6 +48,12 @@ async def evaluate_renal_dosing(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Upstream model returned an invalid renal audit report.",
+        )
+    except AuditEvaluationExhaustedError as exc:
+        logger.error("Stage 2 upstream LLM service unavailable after retries: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Upstream LLM service is temporarily unavailable. Please try again.",
         )
     except Exception as exc:
         logger.error("Stage 2 renal evaluation failed: %s", exc, exc_info=True)

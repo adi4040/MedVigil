@@ -1,5 +1,7 @@
+import asyncio
 import json
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from pydantic import ValidationError
@@ -7,10 +9,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.prompts import STAGE2_SYSTEM_PROMPT, create_renal_agent_user_prompt
+from app.core.retry import (
+    AuditEvaluationExhaustedError,
+    RetryConfig,
+    calculate_backoff,
+    is_transient_error,
+)
 from app.schemas.renal import RenalAuditReport
 from app.services.agent.tools import execute_tool_call, get_gemini_renal_tools
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_STAGE2_RETRY_CONFIG = RetryConfig(
+    max_retries=4,
+    base_delay=2.0,
+    max_delay=32.0,
+    jitter=True,
+)
+_RETRY_HINT_RE = re.compile(
+    r"retry\s+(?:in|delay['\"]?\s*:\s*['\"]?)\s*(\d+(?:\.\d+)?)s",
+    re.IGNORECASE,
+)
 
 
 class RenalAgentRunner:
@@ -23,6 +42,7 @@ class RenalAgentRunner:
         client: Optional[Any] = None,
         max_iterations: int = 8,
         temperature: float = 0.0,
+        retry_config: Optional[RetryConfig] = None,
     ):
         if client is not None:
             self.client = client
@@ -39,6 +59,52 @@ class RenalAgentRunner:
         self.model = model or settings.LLM_MODEL or "gemini-3.5-flash"
         self.max_iterations = max_iterations
         self.temperature = temperature
+        self.retry_config = retry_config or _DEFAULT_STAGE2_RETRY_CONFIG
+
+    async def _generate_with_retry(
+        self,
+        *,
+        contents: List[Any],
+        config: Any,
+        retry_cfg: RetryConfig,
+    ) -> Any:
+        """Call Gemini generate_content with exponential backoff on transient errors."""
+        last_error: Optional[Exception] = None
+
+        for attempt in range(retry_cfg.max_retries + 1):
+            try:
+                return await self.client.aio.models.generate_content(
+                    model=self.model,
+                    contents=contents,
+                    config=config,
+                )
+            except Exception as exc:
+                last_error = exc
+                if not is_transient_error(exc) or attempt >= retry_cfg.max_retries:
+                    if is_transient_error(exc):
+                        raise AuditEvaluationExhaustedError(
+                            f"Stage 2 LLM call failed after {retry_cfg.max_retries + 1} attempts: {exc}"
+                        ) from exc
+                    raise
+
+                delay = calculate_backoff(attempt, retry_cfg)
+                hint_match = _RETRY_HINT_RE.search(str(exc))
+                if hint_match and retry_cfg.max_delay > 0:
+                    hinted_delay = float(hint_match.group(1))
+                    delay = min(retry_cfg.max_delay, max(delay, hinted_delay))
+
+                logger.warning(
+                    "[RenalAgentRunner] Transient LLM error on attempt %d/%d (%s). Retrying in %.2fs...",
+                    attempt + 1,
+                    retry_cfg.max_retries + 1,
+                    type(exc).__name__,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+
+        raise AuditEvaluationExhaustedError(
+            f"Stage 2 LLM call exhausted retries: {last_error}"
+        )
 
     async def run(
         self,
@@ -46,10 +112,12 @@ class RenalAgentRunner:
         session: Optional[AsyncSession] = None,
         patient_id_hint: str = "unknown",
         medication_hint: str = "unknown",
+        retry_config: Optional[RetryConfig] = None,
     ) -> Dict[str, Any]:
         """Execute the Stage 2 autonomous tool-calling loop and return report + telemetry."""
         from google.genai import types
 
+        active_retry_cfg = retry_config or self.retry_config
         user_prompt = create_renal_agent_user_prompt(discharge_json)
         tools = get_gemini_renal_tools()
         tool_trace: List[str] = []
@@ -80,16 +148,16 @@ class RenalAgentRunner:
         ]
 
         for iteration in range(1, self.max_iterations + 1):
-            steps += 1
-            response = await self.client.aio.models.generate_content(
-                model=self.model,
+            response = await self._generate_with_retry(
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=STAGE2_SYSTEM_PROMPT,
                     temperature=self.temperature,
                     tools=tools,
                 ),
+                retry_cfg=active_retry_cfg,
             )
+            steps += 1
             in_tok, out_tok = _extract_token_usage(response)
             input_tokens += in_tok
             output_tokens += out_tok
@@ -142,7 +210,7 @@ class RenalAgentRunner:
                 continue
 
             # No further tool calls: parse or finalize into RenalAuditReport
-            raw_text = (getattr(response, "text", None) or "").strip()
+            raw_text = _strip_json_fences(getattr(response, "text", None) or "")
             if raw_text:
                 try:
                     report = RenalAuditReport.model_validate_json(raw_text)
@@ -174,9 +242,7 @@ class RenalAgentRunner:
                     ],
                 )
             )
-            steps += 1
-            structured_resp = await self.client.aio.models.generate_content(
-                model=self.model,
+            structured_resp = await self._generate_with_retry(
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=STAGE2_SYSTEM_PROMPT,
@@ -184,7 +250,9 @@ class RenalAgentRunner:
                     response_mime_type="application/json",
                     response_schema=RenalAuditReport,
                 ),
+                retry_cfg=active_retry_cfg,
             )
+            steps += 1
             in_tok, out_tok = _extract_token_usage(structured_resp)
             input_tokens += in_tok
             output_tokens += out_tok
@@ -222,6 +290,15 @@ class RenalAgentRunner:
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
         }
+
+
+def _strip_json_fences(text: str) -> str:
+    """Strip optional markdown code fences around a JSON object response."""
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    return cleaned.strip()
 
 
 def _extract_token_usage(response: Any) -> tuple[int, int]:

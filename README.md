@@ -80,6 +80,28 @@ flowchart TD
 - The agent stops after a bounded number of iterations.
 - HTTP endpoint errors are sanitized before reaching the browser.
 
+### Stage 2 Benchmark Results
+
+Evaluated with `scripts/benchmark_renal.py` against the 15 synthetic scenarios in `eval_cases/renal_eval_cases.json` (using an isolated, seeded SQLite benchmark fixture covering CrCl dosing, female `0.85` Cockcroft-Gault scaling, longitudinal eGFR-only masking, eGFR short-circuiting, missing biomarker/catalog/patient halts, and prompt-injection defense). Full per-case logs are stored in `eval_cases/renal_eval_results.json`.
+
+**Run Configuration:** `gemini-3.5-flash-lite` | `temperature = 0.0` | `4.5s` inter-case delay | exponential backoff (`max_retries=5`, `base_delay=2.0s`, `max_delay=45.0s`)
+
+| Metric | Result | Notes |
+| --- | --- | --- |
+| **Completed / Errored Cases** | **15 / 15 completed** (`0` API errors) | 1 transient `ServerError` recovered automatically via backoff retry |
+| **Task Pass/Fail Rate** | **15 / 15 (100.0%)** | Exact match against expected `safe`, `dose_adjustment_required`, and `insufficient_data` verdicts |
+| **Tool Selection Accuracy** | **15 / 15 (100.0%)** | Exact ordered tool sequence (`tools_called == expected_tools`) on all 15 cases |
+| **Average Steps per Case** | **3.47** | `4` steps for CrCl cases, `3` for eGFR / Step-2 halts, `2` for Step-1 unknown-drug halt |
+| **Average Latency** | **12.586s** (`188.793s` total) | Per-case agent execution time (excluding inter-case rate-limit sleep) |
+| **Total Tokens** | **131,211** (`127,386` in / `3,825` out) | Summed from `response.usage_metadata` across all model turns |
+| **Estimated Cost (USD)** | **`$0.047778`** (`$0.038216` in / `$0.009562` out) | Priced at `$0.30` / 1M input tokens and `$2.50` / 1M output tokens |
+
+Run the Stage 2 benchmark locally:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/benchmark_renal.py
+```
+
 ## Technology
 
 - **Frontend:** Next.js 16, React 19, Tailwind CSS, shared `@medv/ui` components
@@ -184,9 +206,9 @@ pnpm dev
   "prescribed_daily_dose_mg": 900,
   "required_renal_metric": "crcl",
   "renal_metric_value": 52.4,
-  "verdict": "safe",
   "lab_warning": null,
   "rationale": "Dose evaluated against the matching renal guideline.",
+  "verdict": "safe",
   "tool_trace": [
     "get_renal_metric(...)",
     "fetch_patient_crcl(...)",

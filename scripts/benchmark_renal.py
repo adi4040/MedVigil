@@ -27,6 +27,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 API_ROOT = PROJECT_ROOT / "apps" / "api"
 sys.path.insert(0, str(API_ROOT))
 
+from app.core.retry import RetryConfig
 from app.db.base import Base
 from app.models.medication import Medication, RenalDosingGuideline
 from app.models.patient import Patient, PatientLab
@@ -381,12 +382,19 @@ async def evaluate_cases(
             await asyncio.sleep(delay_seconds)
 
     total = len(case_results)
-    verdict_passes = sum(1 for r in case_results if r["verdict_pass"])
-    tool_matches = sum(1 for r in case_results if r["tool_selection_match"])
-    total_steps = sum(r["steps"] for r in case_results)
+    completed = [r for r in case_results if r["error"] is None]
+    errored = [r for r in case_results if r["error"] is not None]
+    completed_count = len(completed)
+    errored_count = len(errored)
+
+    verdict_passes = sum(1 for r in completed if r["verdict_pass"])
+    tool_matches = sum(1 for r in completed if r["tool_selection_match"])
+    completed_steps = sum(r["steps"] for r in completed)
+    completed_latencies = [r["latency_seconds"] for r in completed]
+    all_latencies = [r["latency_seconds"] for r in case_results]
+
     total_input_tokens = sum(r["input_tokens"] for r in case_results)
     total_output_tokens = sum(r["output_tokens"] for r in case_results)
-    latencies = [r["latency_seconds"] for r in case_results]
 
     cost_summary = calculate_cost_usd(
         model=runner.model,
@@ -398,14 +406,24 @@ async def evaluate_cases(
         "model": runner.model,
         "temperature": runner.temperature,
         "total_cases": total,
+        "completed_cases": completed_count,
+        "errored_cases": errored_count,
         "task_passed": verdict_passes,
-        "task_failed": total - verdict_passes,
+        "task_failed": completed_count - verdict_passes,
         "task_pass_rate_pct": round((verdict_passes / total) * 100, 2) if total else 0.0,
+        "completed_task_pass_rate_pct": (
+            round((verdict_passes / completed_count) * 100, 2) if completed_count else 0.0
+        ),
         "tool_exact_matches": tool_matches,
         "tool_selection_accuracy_pct": round((tool_matches / total) * 100, 2) if total else 0.0,
-        "avg_steps": round(total_steps / total, 2) if total else 0.0,
-        "avg_latency_seconds": round(statistics.mean(latencies), 3) if latencies else 0.0,
-        "total_latency_seconds": round(sum(latencies), 3),
+        "completed_tool_accuracy_pct": (
+            round((tool_matches / completed_count) * 100, 2) if completed_count else 0.0
+        ),
+        "avg_steps": round(completed_steps / completed_count, 2) if completed_count else 0.0,
+        "avg_latency_seconds": (
+            round(statistics.mean(completed_latencies), 3) if completed_latencies else 0.0
+        ),
+        "total_latency_seconds": round(sum(all_latencies), 3),
         "total_input_tokens": total_input_tokens,
         "total_output_tokens": total_output_tokens,
         "total_tokens": total_input_tokens + total_output_tokens,
@@ -434,6 +452,12 @@ async def async_main() -> None:
         runner = RenalAgentRunner(
             model=args.model,
             temperature=0.0,
+            retry_config=RetryConfig(
+                max_retries=5,
+                base_delay=2.0,
+                max_delay=45.0,
+                jitter=True,
+            ),
         )
 
         print("=" * 84)
@@ -457,10 +481,20 @@ async def async_main() -> None:
     print("\n" + "=" * 84)
     print(" STAGE 2 BENCHMARK SUMMARY")
     print("=" * 84)
-    print(f" Task Pass/Fail Rate      : {s['task_passed']}/{s['total_cases']} ({s['task_pass_rate_pct']}%)")
-    print(f" Tool Selection Accuracy  : {s['tool_exact_matches']}/{s['total_cases']} ({s['tool_selection_accuracy_pct']}%)")
-    print(f" Average Steps per Case   : {s['avg_steps']}")
-    print(f" Average Latency          : {s['avg_latency_seconds']:.3f}s (Total: {s['total_latency_seconds']:.3f}s)")
+    print(
+        f" Completed vs Errored     : {s['completed_cases']}/{s['total_cases']} completed, "
+        f"{s['errored_cases']} API error(s)"
+    )
+    print(
+        f" Task Pass/Fail Rate      : {s['task_passed']}/{s['total_cases']} overall ({s['task_pass_rate_pct']}%) | "
+        f"{s['task_passed']}/{s['completed_cases']} completed ({s['completed_task_pass_rate_pct']}%)"
+    )
+    print(
+        f" Tool Selection Accuracy  : {s['tool_exact_matches']}/{s['total_cases']} overall ({s['tool_selection_accuracy_pct']}%) | "
+        f"{s['tool_exact_matches']}/{s['completed_cases']} completed ({s['completed_tool_accuracy_pct']}%)"
+    )
+    print(f" Avg Steps (Completed)    : {s['avg_steps']}")
+    print(f" Avg Latency (Completed)  : {s['avg_latency_seconds']:.3f}s (Total wall: {s['total_latency_seconds']:.3f}s)")
     print(f" Total Tokens             : {s['total_input_tokens']} input + {s['total_output_tokens']} output = {s['total_tokens']}")
     print(
         f" Money Burnt ({s['model']} @ ${s['input_rate_per_1m']:.2f}/1M in, "
